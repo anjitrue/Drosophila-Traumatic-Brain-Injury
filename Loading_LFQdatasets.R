@@ -53,8 +53,9 @@ setwd("E:/Projects/Proteomics/DorsophilaHead_Experiment/")
 
 
 #load data
-proteinGroups <- read_delim ("proteinGroups_EAT_DrosHeadsHemo_201801025.txt",
-                                                        "\t", escape_double = FALSE, trim_ws = TRUE)
+proteinGroups <- read_delim("proteinGroups_EAT_DrosHeadsHemo_201801025.txt","\t", escape_double = FALSE, trim_ws = TRUE)
+sapply(strsplit(proteinGroups, ";"), "[", 1)                                                      
+
 rownames(proteinGroups) <- proteinGroups$id
 
 imputedHeadGroups <- read_delim ("Timepoints(Branch_ Heads).txt",
@@ -112,14 +113,53 @@ Density_sequenceCoverage + geom_density() + geom_vline(aes(xintercept = mean(Seq
 #log2protein = imputedHemolymphGroups[,c(7:14)]
 #log2protein_heads = imputedHeadGroups[,c(7:40)]
 
-log2protein_heads = data.frame(proteinGroups[,c(17:50)])
-log2protein_heads <- log2protein_heads[-which(rowSums(log2protein_heads) == 0),]
-log2protein_heads[log2protein_heads == 0] <- NA
-sum(is.na(log2protein_heads)) #1158007
+protein_heads = data.frame(proteinGroups[,c(17:50)]) 
+protein_heads <- protein_heads[-which(rowSums(protein_heads) == 0),]
+protein_heads[protein_heads == 0] <- NA
+sum(is.na(protein_heads)) #55185
 
-pc <- pca(log2protein_heads, nPcs = 3, method = "bpca")
+log2protein_heads = log2(protein_heads) #transform? in Log2 and transpose
+
+
+remove.features <- function (x)
+  {
+    x = log2protein_heads
+    features.missing = rowMeans(is.na(x)) 
+    print(sum(features.missing > 0.50)) # 1524 protein groups
+    features.missing.50more = rownames(x)[features.missing > 0.50] 
+    
+    keep.features = which(features.missing < 0.50) #7568
+    print(paste0("Remaining Features: ", length(keep.features)))
+    keep.features = names(keep.features) 
+    
+    remove.features = which(features.missing > 0.50) #1524
+    print(paste0("Features Removed: ", length(remove.features)))
+    remove.features = names(remove.features)
+    
+    filtered = x[-which(rownames(x) %in% remove.features),]
+    return(filtered)
+}
+str(log2protein_heads)
+remove.features(log2protein_heads)
+
+
+pc<- pca(protein_heads, nPcs = 10, method = "bpca") #no log2 tranformations
+pc_log2 <- pca(log2protein_heads, nPcs = 10, method = "bpca") #log2 transformed prior to PCA function
+t_pc_log2 <- pca(t(log2protein_heads), nPcs = 10, method = "bpca")
 imputed <- completeObs(pc)
-log2protein_heads_imputed <- log2(abs(imputed))
+imputed_log2 <- completeObs(pc_log2)
+
+
+write.table(imputed, "Rmodified_imputedProtein_heads.txt", sep="\t")
+
+#log2protein_heads_imputed <- log2(abs(imputed))
+
+plot(pc_log2)
+plot(pc)
+plot(loadings(pc_log2))
+plot(scores(pc))
+
+slplot(pc_log2, scoresLoadings = c(T,T))
 
 log2protein = as.matrix(log2(log2protein_heads))
 log2protein = t(log2protein)
