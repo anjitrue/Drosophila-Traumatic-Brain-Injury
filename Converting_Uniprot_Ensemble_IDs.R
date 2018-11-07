@@ -45,7 +45,7 @@ transcript_mouse_ID_Ensembl <- getBM(attributes = c("ensembl_transcript_id","uni
 
 transcript_mouse_ID_Uniprot <- getBM(attributes = c("ensembl_transcript_id", "uniprotsptrembl", "uniprotswissprot"),
                                      values = Uniprot_protein_id,
-                                     #filters = "uniprotswissprot", # important filter to obtain only UniprotIDs in list
+                                     filters = "uniprotswissprot", # important filter to obtain only UniprotIDs in list
                                      mart = ensembl)
 
 # Matching to existing list
@@ -57,18 +57,25 @@ Uniprot_join = right_join(transcript_mouse_ID_Ensembl, Uniprot_join, by = "Prote
 
 write.table(transcript_mouse_ID_Uniprot, "E:/Projects/Proteomics/DiversityOutcross/txt_Uniprot/Rmodified_Uniprot_matchingTable.txt", sep="\t")
 
-i = 1
+# i = 1
+# determine which protein groups are matching in the data table
 match_id <- NULL
-for(i in 1:nrow(transcript_mouse_ID_Uniprot)){
-  if(!(transcript_mouse_ID_Uniprot[i,2] == ""| is.na(transcript_mouse_ID_Uniprot[i,2]) )){
-   if (length(grep(transcript_mouse_ID_Uniprot[i,2], Uniprot_protein_id) > 0)){ 
+for(i in 1:nrow(transcript_mouse_ID_Uniprot)){ #iterate through every row in getBM output
+  # iterate through every element in column 2 of getBM output and ask if it empty or contains an "NA"
+  # if the index is not empty or contains NA enter if statem
+  if(!(transcript_mouse_ID_Uniprot[i,2] == ""| is.na(transcript_mouse_ID_Uniprot[i,2]) )){  
+   # pattern patch characters in the indexed cell to all of the protein IDs generated from MAXQuant
+   # if pattern matches assign x, else x is NA 
+    if (length(grep(transcript_mouse_ID_Uniprot[i,2], Uniprot_protein_id) > 0)){ 
      x = grep(transcript_mouse_ID_Uniprot[i,2], Uniprot_protein_id)
      } else(x = NA)
   } else(x = NA)
+  # iteratate through every element in column 3 and ask if patterns match and populate y
   if(!(transcript_mouse_ID_Uniprot[i,3] == "" | is.na(transcript_mouse_ID_Uniprot[i,2]))){
     if (length(grep(transcript_mouse_ID_Uniprot[i,3], Uniprot_protein_id)) > 0){ 
       y = grep(transcript_mouse_ID_Uniprot[i,3], Uniprot_protein_id) } else(y = NA)
   } else(y = NA)
+  #append x and y to match_id
   match_id <- append(match_id, paste(x,y))
 }
 match_id <- gsub(" ", "", match_id)
