@@ -1,3 +1,4 @@
+##################################Load Packages #################################################
 source("https://bioconductor.org/biocLite.R")
 biocLite("pcaMethods")
 
@@ -10,53 +11,283 @@ library(pheatmap)
 library(pcaMethods)
 library(ggplot2)
 library(devtools)
+library(e1071)
+library(dplyr)
+library(Mfuzz)
 
+##################################### Load Data ####################################################
 
-#create a vector with all the time points 
-timePoint <- c("Immediate following HIT","30 min","1 hour","2 hour","4 hour","6 hour","8 hour","12 hour","16 hour","24 hour",
-               "48 hour","72 hour","7 days","14 days","21 days","28 days","35 days")
-
-#Heads_1_hour_Branch_Heads_Proteomics_Fractions_ <- read_delim("E:/Projects/Proteomics/DorsophilaHead_Experiment/LFQ/2Branches/Heads - 1 hour (Branch_ Heads Proteomics + Fractions).txt", 
-                                                #"\t", escape_double = FALSE, trim_ws = TRUE)
-#set working directory
-getwd()
-setwd("E:/Projects/Proteomics/DorsophilaHead_Experiment/LFQ/2Branches")
-
-# create a vecotr of files in directory with .txt ending, read files in with read.delim
-temp = list.files(pattern = "*.txt")
-myfiles = lapply(temp, read.delim)
-
-#populate a list with the correct file name and corresponding database (create an lapply function)
-filename = list()
-for(i in 1:length(temp)){ 
-  filename[i] <- temp[i]
-}
-
-names(filename) <- filename
-
-for(i in 1:length(filename)){ 
-  filename[i] <- myfiles[i]
-}
-
-filename_totaldf <- data.frame()
-
-
-y <- merge(filename[[1]], filename[[2]], by = 1, all = TRUE)
-
-
-###################################################################################################################
-###################################################################################################################
-###################################################################################################################
-###################################################################################################################
-
+#set working Directory
 setwd("E:/Projects/Proteomics/DorsophilaHead_Experiment/")
 
-
 #load data
-proteinGroups <- read_delim("proteinGroups_EAT_DrosHeadsHemo_201801025.txt","\t", escape_double = FALSE, trim_ws = TRUE)
-sapply(strsplit(proteinGroups, ";"), "[", 1)                                                      
+proteinGroups_dros_hemo <- read_delim("E:/Projects/Proteomics/DorsophilaHead_Experiment/txt_hemo_plusFrac/proteinGroups.txt","\t", escape_double = FALSE, trim_ws = TRUE)
+# dim(proteinGroups_dros_hemo) [1] 9746  131
+#proteinGroups_dros_hemo <- data.frame(proteinGroups_dros_hemo)
+proteinGroups_dros_heads <- read_delim("E:/Projects/Proteomics/DorsophilaHead_Experiment/txt_dros_heads_plusFrac/proteinGroups__dros_heads_plusFrac.txt","\t", escape_double = FALSE, trim_ws = TRUE)
+#[1] 10290   338
+##################################### Functions ####################################################
 
-rownames(proteinGroups) <- proteinGroups$id
+RemoveCotaminats <- function(x){
+ x <- x[-grep("*",x$`Potential contaminant`),]
+ x <- x[-grep("*",x$Reverse),]
+ x <- x[-grep("*",x$`Only identified by site`),]
+ x <- x[-grep("CON",x$`Protein IDs`),]
+ x <- x[-grep("REV",x$`Protein IDs`),]
+ x <- x[,-which(names(x) %in% c("Potential contaminant","Reverse","Only identified by site"))]
+ return(x)
+ 
+}
+
+subsetLFQ <- function(x){
+  y <- x[,which(names(x) %in% c("Protein IDs", "id","Gene names"))]
+  z <- x[,grep("LFQ intensity",names(x))]
+  z[z == 0] <- NA
+  x <- data.frame(y,z)
+  return(x)
+}
+
+remove.features.50percentcuttoff <- function (x) {
+  features.missing = rowMeans(is.na(x)) 
+  print(sum(features.missing > 0.50)) 
+  features.missing.50more = rownames(x)[features.missing > 0.50] 
+  
+  keep.features = which(features.missing <= 0.50) 
+  print(paste0("Remaining Features: ", length(keep.features)))
+  names(keep.features) = keep.features 
+  
+  remove.features = which(features.missing > 0.50)
+  print(paste0("Features Removed: ", length(remove.features)))
+  names(remove.features) = remove.features
+  
+  filtered = x[-which(rownames(x) %in% remove.features),]
+  return(filtered)
+}
+
+remove.features.25percentcuttoff <- function (x) {
+  features.missing = rowMeans(is.na(x)) 
+  print(sum(features.missing > 0.75)) 
+  features.missing.75more = rownames(x)[features.missing > 0.75] 
+  
+  keep.features = which(features.missing <= 0.25) 
+  print(paste0("Remaining Features: ", length(keep.features)))
+  names(keep.features) = keep.features 
+  
+  remove.features = which(features.missing > 0.75)
+  print(paste0("Features Removed: ", length(remove.features)))
+  names(remove.features) = remove.features
+  
+  filtered = x[-which(rownames(x) %in% remove.features),]
+  return(filtered)
+}
+
+remove.features.10percentcuttoff <- function (x) {
+  features.missing = rowMeans(is.na(x)) 
+  print(sum(features.missing > 0.90)) 
+  features.missing.10more = rownames(x)[features.missing > 0.90] 
+  
+  keep.features = which(features.missing <= 0.10) 
+  print(paste0("Remaining Features: ", length(keep.features)))
+  names(keep.features) = keep.features 
+  
+  remove.features = which(features.missing > 0.90)
+  print(paste0("Features Removed: ", length(remove.features)))
+  names(remove.features) = remove.features
+  
+  filtered = x[-which(rownames(x) %in% remove.features),]
+  return(filtered)
+}
+
+fuzzyprep_imputation_included <- function(z)
+{
+  exprValues <- new("ExpressionSet", exprs = as.matrix(z))
+  # exclude proteins that have more than 50% of measurements missing
+  exprValues.r <- filter.NA(exprValues, thres = 0.50)
+  exprValues.f = fill.NA(exprValues.r, mode="median")
+  tmp = filter.std(exprValues.f, min.std = 0.1)
+  exprValues.s = standardise(tmp)
+  return(exprValues.s)
+}
+
+fuzzyprep_usepreviousImputation <- function(z)
+{
+  exprValues <- new("ExpressionSet", exprs = as.matrix(z))
+  # exclude proteins that have more than 50% of measurements missing
+  exprValues.r <- filter.NA(exprValues, thres = 0.50)
+  tmp = filter.std(exprValues.r, min.std = 0.1)
+  exprValues.s = standardise(tmp)
+  return(exprValues.s)
+}
+
+##################################### Hemo Data ####################################################
+
+proteinGroups_dros_hemo <- RemoveCotaminats(proteinGroups_dros_hemo) # dim(proteinGroups_dros_hemo) [1] 9181  128
+proteinGroups_dros_hemo <- subsetLFQ(proteinGroups_dros_hemo) # dim(proteinGroups_dros_hemo) [1] 9181  12
+
+
+sum(is.na(proteinGroups_dros_hemo)) #31443 missing values
+
+filtered_dros_hemo_50percent <- remove.features.50percentcuttoff(proteinGroups_dros_hemo)
+#[1] 3151
+#[1] "Remaining Features: 6030"
+#[1] "Features Removed: 3151"
+
+filtered_dros_hemo_25percent <- remove.features.25percentcuttoff(proteinGroups_dros_hemo)
+#[1] 3
+#[1] "Remaining Features: 5571"
+#[1] "Features Removed: 3"
+
+
+filtered_dros_hemo_10percent <- remove.features.10percentcuttoff(proteinGroups_dros_hemo)
+#[1] 0
+#[1] "Remaining Features: 9181"
+#[1] "Features Removed: 0"
+
+even_index <- seq(2,8,2)
+odd_index <- seq(1,8,2)
+
+# set up for baysian pca imputation
+hemo_50percent <- as.matrix(filtered_dros_hemo_50percent[,c(4:11)])
+hemo_50percent_log2 <- log2(hemo_50percent)
+rownames(hemo_50percent_log2) <- filtered_dros_hemo_50percent$id
+
+pc_hemolog2 <- pca(hemo_50percent_log2, nPcs = 3, method = "bpca")
+imputed_hemo <- completeObs(pc_hemolog2)
+
+imputed_hemo_even <- imputed_hemo[,even_index]
+imputed_hemo_odd <- imputed_hemo[,odd_index]
+
+
+#subset for other modes of imputation
+z_hemo <- proteinGroups_dros_hemo[,4:11]
+z_hemo <- log2(z_hemo)
+rownames(z_hemo) <- proteinGroups_dros_hemo$id
+Z_hemo_even <- z_hemo[,even_index]
+z_hemo_odd <- z_hemo[,odd_index]
+
+# Hemo mFuzz Soft Clustering----------------------------------------------------
+z = imputed_hemo_odd #change according to data input
+
+
+exprValues.s_imput <- fuzzyprep_imputation_included(Z_hemo_even)
+exprValues.s_bayesian <- fuzzyprep_usepreviousImputation(imputed_hemo_even)
+
+m1 <- mestimate(exprValues.s_imput)
+error <- NA
+
+for(i in 2:15){
+  c1 <- mfuzz(exprValues.s_imput, c=i, m=m1)
+  error <- rbind(error, c(i,c1$withinerror))
+}
+plot(error[,1], error[,2])
+
+
+#exprValues.s.nominstd = standardise(exprValues.r) #use data that is non std
+
+m1 <- mestimate(exprValues.s)
+
+error <- NA
+
+for(i in 2:15){
+  c1 <- mfuzz(exprValues.s, c=i, m=m1)
+  error <- rbind(error, c(i,c1$withinerror))
+}
+plot(error[,1], error[,2])
+
+c1 <- mfuzz(exprValues.s, c=6, m=m1)
+
+pdf(file = "20181022_Phosphosites_SoftClusters.pdf")
+par(mar=c(3,3,1,1))
+mfuzz.plot2(exprValues.s, cl=c1, mfrow = c(3,2), col.lab="black", x11=F)
+dev.off()
+
+a <- acore(exprValues.s, c1, min.acore=0.0)
+
+cluster1 <- data.frame(a[[1]])
+cluster2 <- data.frame(a[[2]])
+cluster3 <- data.frame(a[[3]])
+cluster4 <- data.frame(a[[4]])
+#For Phospho Data
+cluster5 <- data.frame(a[[5]])
+cluster6 <- data.frame(a[[6]])
+
+write.csv(cluster1, "cluster1Info.csv")
+write.csv(cluster2, "cluster2Info.csv")
+write.csv(cluster3, "cluster3Info.csv")
+write.csv(cluster4, "cluster4Info.csv")
+#For Phospho Data
+write.csv(cluster5, "cluster5Info.csv")
+write.csv(cluster6, "cluster6Info.csv")
+
+
+
+##################################### Head Data ####################################################
+proteinGroups_dros_heads <- RemoveCotaminats(proteinGroups_dros_heads) # [1] 9365  335
+proteinGroups_dros_heads <- subsetLFQ(proteinGroups_dros_heads) # [1] 9365   38
+
+z = as.matrix(proteinGroups_dros_heads[,5:length(proteinGroups_dros_heads)])
+
+#order the columns
+colnames(z) <- sub("LFQ.intensity.Heads_", "", colnames(z))
+colnames(z) <- as.numeric(colnames(z))
+z <- z[,order(as.integer(colnames(z)))]
+z <- log2(z)
+
+even_index <- seq(2,34,2)
+odd_index <- seq(1,34,2)
+
+z <- z[,odd_index]
+
+sum(is.na(z)) #80327
+
+filtered_dros_head_50percent <- remove.features.50percentcuttoff(proteinGroups_dros_heads)
+#[1] 2190
+#[1] "Remaining Features: 7129"
+#[1] "Features Removed: 2190"
+
+filtered_dros_head_25percent <- remove.features.25percentcuttoff(proteinGroups_dros_heads)
+#[1] 1772
+#[1] "Remaining Features: 7593"
+#[1] "Features Removed: 1772"
+
+
+filtered_dros_head_10percent <- remove.features.10percentcuttoff(proteinGroups_dros_heads)
+#[1] 460
+#[1] "Remaining Features: 8905"
+#[1] "Features Removed: 460"
+
+
+# mFuzz Soft Clustering----------------------------------------------------
+
+require(Biobase)
+exprValues <- new("ExpressionSet", exprs = as.matrix(z))
+
+exprValues.r <- filter.NA(exprValues, thres = 0.9)
+
+exprValues.f = fill.NA(exprValues.r, mode="median")
+
+tmp = filter.std(exprValues.f, min.std = 0.1)
+
+exprValues.s = standardise(tmp)
+
+m1 <- mestimate(exprValues.s)
+
+error <- NA
+
+
+for(i in 2:50){
+  c1 <- mfuzz(exprValues.s, c=i, m=m1)
+  error <- rbind(error, c(i,c1$withinerror))
+}
+plot(error[,1], error[,2])
+
+c1 <- mfuzz(exprValues.s, c=15, m=m1)
+
+pdf(file = "20181022_Phosphosites_SoftClusters.pdf")
+par(mar=c(3,3,1,1))
+mfuzz.plot2(exprValues.s, cl=c1, mfrow = c(3,2), col.lab="black", x11=F)
+dev.off()
+
 
 imputedHeadGroups <- read_delim ("Timepoints(Branch_ Heads).txt",
                              "\t", escape_double = FALSE, trim_ws = TRUE)
@@ -121,24 +352,6 @@ sum(is.na(protein_heads)) #55185
 log2protein_heads = log2(protein_heads) #transform? in Log2 and transpose
 
 
-remove.features <- function (x)
-  {
-    x = log2protein_heads
-    features.missing = rowMeans(is.na(x)) 
-    print(sum(features.missing > 0.50)) # 1524 protein groups
-    features.missing.50more = rownames(x)[features.missing > 0.50] 
-    
-    keep.features = which(features.missing < 0.50) #7568
-    print(paste0("Remaining Features: ", length(keep.features)))
-    keep.features = names(keep.features) 
-    
-    remove.features = which(features.missing > 0.50) #1524
-    print(paste0("Features Removed: ", length(remove.features)))
-    remove.features = names(remove.features)
-    
-    filtered = x[-which(rownames(x) %in% remove.features),]
-    return(filtered)
-}
 str(log2protein_heads)
 remove.features(log2protein_heads)
 
