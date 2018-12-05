@@ -1,0 +1,271 @@
+---
+title: "Loading_LFQ"
+author: "Anji Trujillo"
+date: "November 26, 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+require(knitr)
+opts_knit$set(root.dir = "E:/Projects/Proteomics/")
+knitr::opts_chunk$set(root.dir = "E:/Projects/Proteomics/", warning = FALSE, message = FALSE)
+```
+
+This is an R Markdown document for Drosophila Traumatic Brain injury. The data includes proteomic data for Drosophila head and hemolymph.
+
+Install the following packages:
+
+```{r install_packages, echo=FALSE}
+library(readr)
+library(plyr)
+library(dplyr)
+library(pheatmap)
+library(pcaMethods)
+library(ggplot2)
+library(devtools)
+library(e1071)
+library(dplyr)
+library(Mfuzz)
+```
+
+## Load data
+```{r load_data, include=TRUE}
+proteinGroups_dros_hemo <- read_delim("E:/Projects/Proteomics/DorsophilaHead_Experiment/txt_hemo_plusFrac/proteinGroups.txt","\t", escape_double = FALSE, trim_ws = TRUE)
+print(dim(proteinGroups_dros_hemo))
+#proteinGroups_dros_hemo <- data.frame(proteinGroups_dros_hemo)
+proteinGroups_dros_heads <- read_delim("E:/Projects/Proteomics/DorsophilaHead_Experiment/txt_dros_heads_plusFrac/proteinGroups__dros_heads_plusFrac.txt","\t", escape_double = FALSE, trim_ws = TRUE)
+print(dim(proteinGroups_dros_heads))
+```
+
+
+Functions include  
+1. Remove Contaminants and Reverse Sequences  
+2. Subset columns only with protein ID's, number identifier, and Gene Name  
+3. 50% data cut off, filters data to exclude proteins that have more than 50% of measurements missing 
+4. Plotting Standard Deviation of Proteins
+5. Fuzzy c-means preperation for data that has not been imputed yet  
+6. Fuzzy c-means for data that has been previously imputed (in this case Bayesian Statistics from PCAMethods package)  
+
+```{r functions, include=TRUE}
+RemoveContaminants <- function(x){
+ x <- x[-grep("*",x$`Potential contaminant`),]
+ x <- x[-grep("*",x$Reverse),]
+ x <- x[-grep("*",x$`Only identified by site`),]
+ x <- x[-grep("CON",x$`Protein IDs`),]
+ x <- x[-grep("REV",x$`Protein IDs`),]
+ x <- x[,-which(names(x) %in% c("Potential contaminant","Reverse","Only identified by site"))]
+ return(x)
+} 
+
+subsetLFQ <- function(x){
+  y <- x[,which(names(x) %in% c("Protein IDs", "id","Gene names"))]
+  z <- x[,grep("LFQ intensity",names(x))]
+  z[z == 0] <- NA
+  x <- data.frame(y,z)
+  return(x)
+}
+ 
+remove.features.50percentcuttoff <- function (x) {
+  features.missing = rowMeans(is.na(x)) 
+  print(sum(features.missing > 0.50)) 
+  features.missing.50more = rownames(x)[features.missing > 0.50] 
+  
+  keep.features = which(features.missing <= 0.50) 
+  print(paste0("Remaining Features: ", length(keep.features)))
+  names(keep.features) = keep.features 
+  
+  remove.features = which(features.missing > 0.50)
+  print(paste0("Features Removed: ", length(remove.features)))
+  names(remove.features) = remove.features
+  
+  filtered = x[-which(rownames(x) %in% remove.features),]
+  return(filtered)
+}
+
+filter.std.plotting <- function (eset, min.std,visu=TRUE)
+{
+  #index <- logical(dim(exprs(eset))[1])
+
+  tmp <- logical(dim(exprs(eset))[1])
+  if (is.numeric(min.std))
+  { 
+    data <- exprs(eset)
+      for (i in 1:length(tmp))
+      {
+        tmp[i]   <- sd(data[i,],na.rm=TRUE)
+        #index[i]  <- ( tmp[i] > min.std)
+        
+      }
+    index <- tmp > min.std
+    index[is.na(index)] <- TRUE
+    cat(paste(sum(!index),"genes excluded.\n"))
+  }
+  
+  if (visu)
+  {
+    plot(sort(tmp),xlab="Ordered Hemo Proteins",ylab="Standard Deviation")
+  }
+  eset[index,]
+}
+
+fuzzyprep_imputation_included <- function(z)
+{
+  exprValues <- new("ExpressionSet", exprs = as.matrix(z))
+  # exclude proteins that have more than 50% of measurements missing
+  exprValues.r <- filter.NA(exprValues, thres = 0.50)
+  # Fuzzy c-means does not allow for missing values, replace missing values by median values
+  exprValues.f = fill.NA(exprValues.r, mode="median")
+  # Set a minimum threshold for variation 
+  tmp = filter.std(exprValues.f, min.std = 0.1)
+  # Clustering is performed in Eculidian space, standaridize abundance values to have a mean value of zero
+  # Ensures that proteins with similar changes in abundance are close in Euclidean space
+  exprValues.s = standardise(tmp)
+  return(exprValues.s)
+}
+
+fuzzyprep_usepreviousImputation <- function(z)
+{
+  exprValues <- new("ExpressionSet", exprs = as.matrix(z))
+  tmp = filter.std.plotting(exprValues, min.std = 0.1)
+  exprValues.s = standardise(exprValues)
+  return(exprValues.s)
+}
+
+fuzzyprep_usepreviousImputation_foldchange <- function(z)
+{
+  exprValues <- new("ExpressionSet", exprs = as.matrix(z))
+  tmp = filter.std.plotting(exprValues, min.std = 0.1)
+  #exprValues.s = standardise(exprValues)
+  return(exprValues)
+}
+
+```
+## Hemo Data
+```{r subset_hemo, include=TRUE}
+proteinGroups_dros_hemo <- RemoveContaminants(proteinGroups_dros_hemo)
+print(dim(proteinGroups_dros_hemo))
+proteinGroups_dros_hemo <- subsetLFQ(proteinGroups_dros_hemo) 
+print(dim(proteinGroups_dros_hemo))
+```
+
+Number of missing values in Hemo dataset: `r sum(is.na(proteinGroups_dros_hemo))`
+
+Filter and exclude protein groups that are missing over 50% of measurements 
+```{r filter_hemo, include=TRUE}
+filtered_dros_hemo_50percent <- remove.features.50percentcuttoff(proteinGroups_dros_hemo)
+```
+
+Set up for bayesian pca imputation
+```{r bayesian, include=TRUE}
+#subset matrix containing only samples that have been filtered 50% threshold
+hemo_50percent <- as.matrix(filtered_dros_hemo_50percent[,c(4:11)])
+#log2 transform
+hemo_50percent_log2 <- log2(hemo_50percent)
+#set row names to match protein group identifer number
+rownames(hemo_50percent_log2) <- filtered_dros_hemo_50percent$id
+
+#PCA function utelizing method=bpca "bayesian"
+pc_hemolog2 <- pca(hemo_50percent_log2, nPcs = 3, method = "bpca") #pca method
+#extract imputed data set for hemo data
+imputed_hemo <- completeObs(pc_hemolog2)
+```
+
+Split data up between the controls and the TBI samples
+```{r even_odd, include=TRUE}
+even_index <- seq(2,8,2) #TBI samples
+odd_index <- seq(1,8,2) #controls
+
+imputed_hemo_even <- imputed_hemo[,even_index]
+imputed_hemo_odd <- imputed_hemo[,odd_index]
+imputed_hemo_reorder <- imputed_hemo[,c(odd_index,even_index)]
+```
+
+
+## Hemo mFuzz Soft Clustering - reordered samples
+Control samples first 4 and TBI samples remaining 4
+```{r mfuzz_bayesian_imputed, include=TRUE}
+
+#start with the re-ordered hemo data
+z = imputed_hemo_reorder # change accordingly to use in mfuzzy setup funtions
+
+exprValues.s_bayesian <- fuzzyprep_usepreviousImputation(z)
+```
+
+Soft clustering is implemented in the function mfuzz
+fuzzy c-means algorithm from e1071 package
+
+```{r mfuzz_bayesian, include=TRUE}
+error <- NA #set error to NA
+
+y = exprValues.s_bayesian #change according to version of data to perform fuzzy clustering
+```
+
+The fuzzier "m" and the number of clusters "c" must be chosen in advanced. For "m" we choose a value that prevents clustering of random data. This fuzzy type of clustering is advantageous over hard cluster (e.g. k-means) which commonly detects clusters of random data. 
+
+The function mestimate 
+ 
+```{r mfuzz_bayesian_imputed_error, include=TRUE}
+m1 <- mestimate(y) 
+
+# 
+for(i in 2:15){
+  c1 <- mfuzz(y, c=i, m=m1)
+  error <- rbind(error, c(i,c1$withinerror))
+}
+```
+
+Plot error calculated from imputed hemo data set that has been reordered. 
+```{r pressure, echo=FALSE}
+plot(error[,1], error[,2])
+```
+
+```{r numberOfClusters, echo=FALSE}
+c1 <- mfuzz(y, c=12, m=m1)
+mfuzz.plot2(y, cl=c1, mfrow = c(3,2), col.lab="black", x11=F)
+```
+
+## Hemo mFuzz Soft Clustering - fold change
+
+```{r mfuzz_foldchange, include=TRUE}
+imputed_hemo_fold <- imputed_hemo_reorder[,5:8]-imputed_hemo_reorder[,1:4]
+
+```
+
+Push Fold Change Hemo Data through Mfuzz function
+```{r mfuzz_bayesian_imputed_foldchange, include=TRUE}
+
+#start with the re-ordered hemo data
+z = imputed_hemo_fold # change accordingly to use in mfuzzy setup funtions
+
+exprValues.s_bayesian <- fuzzyprep_usepreviousImputation_foldchange(z)
+```
+
+```{r mfuzz_bayesian_foldchange, include=TRUE}
+error <- NA #set error to NA
+
+y = exprValues.s_bayesian #change according to version of data to perform fuzzy clustering
+```
+
+The function mestimate 
+ 
+```{r mfuzz_bayesian_imputed_foldchange_error, include=TRUE}
+m1 <- mestimate(y) 
+
+# 
+for(i in 2:15){
+  c1 <- mfuzz(y, c=i, m=m1)
+  error <- rbind(error, c(i,c1$withinerror))
+}
+```
+
+Plot error calculated from imputed hemo data set that has been reordered. 
+```{r error_hemo_foldChange, echo=FALSE}
+plot(error[,1], error[,2])
+```
+
+```{r numberOfClusters_foldchange, echo=FALSE}
+c1 <- mfuzz(y, c=6, m=m1)
+mfuzz.plot2(y, cl=c1, mfrow = c(3,2), col.lab="black", x11=F)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
