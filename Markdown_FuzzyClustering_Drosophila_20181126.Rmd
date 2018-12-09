@@ -1,7 +1,7 @@
 ---
 title: "Loading_LFQ"
 author: "Anji Trujillo"
-date: "November 26, 2018"
+date: "December 8, 2018"
 output: html_document
 ---
 
@@ -13,7 +13,6 @@ knitr::opts_chunk$set(root.dir = "E:/Projects/Proteomics/", warning = FALSE, mes
 
 This is an R Markdown document for Drosophila Traumatic Brain injury. The data includes proteomic data for Drosophila head and hemolymph.
 
-Install the following packages:
 
 ```{r install_packages, echo=FALSE}
 library(readr)
@@ -26,19 +25,22 @@ library(devtools)
 library(e1071)
 library(dplyr)
 library(Mfuzz)
+library(cluster)
+library(Rcpp)
 ```
 
 ## Load data
-```{r load_data, include=TRUE}
+```{r load_data, echo=FALSE}
 proteinGroups_dros_hemo <- read_delim("E:/Projects/Proteomics/DorsophilaHead_Experiment/txt_hemo_plusFrac/proteinGroups.txt","\t", escape_double = FALSE, trim_ws = TRUE)
-print(dim(proteinGroups_dros_hemo))
+print(paste0("Number of protein groups in Hemolymph Data before any filtering: ", nrow(proteinGroups_dros_hemo), "\n", "Number of columns: ", ncol(proteinGroups_dros_hemo)))
 #proteinGroups_dros_hemo <- data.frame(proteinGroups_dros_hemo)
 proteinGroups_dros_heads <- read_delim("E:/Projects/Proteomics/DorsophilaHead_Experiment/txt_dros_heads_plusFrac/proteinGroups__dros_heads_plusFrac.txt","\t", escape_double = FALSE, trim_ws = TRUE)
-print(dim(proteinGroups_dros_heads))
+print(paste0("Number of protein groups in Heads Data before any filtering: ", nrow(proteinGroups_dros_heads), "\n", "Number of columns: ", ncol(proteinGroups_dros_heads)))
+
 ```
 
 
-Functions include  
+Functions I have made to change the data  
 1. Remove Contaminants and Reverse Sequences  
 2. Subset columns only with protein ID's, number identifier, and Gene Name  
 3. 50% data cut off, filters data to exclude proteins that have more than 50% of measurements missing 
@@ -46,7 +48,7 @@ Functions include
 5. Fuzzy c-means preperation for data that has not been imputed yet  
 6. Fuzzy c-means for data that has been previously imputed (in this case Bayesian Statistics from PCAMethods package)  
 
-```{r functions, include=TRUE}
+```{r functions, echo=FALSE}
 RemoveContaminants <- function(x){
  x <- x[-grep("*",x$`Potential contaminant`),]
  x <- x[-grep("*",x$Reverse),]
@@ -67,15 +69,15 @@ subsetLFQ <- function(x){
  
 remove.features.50percentcuttoff <- function (x) {
   features.missing = rowMeans(is.na(x)) 
-  print(sum(features.missing > 0.50)) 
+  print(paste0("Number of protein groups that have over 50% missing measurements: ",sum(features.missing > 0.50))) 
   features.missing.50more = rownames(x)[features.missing > 0.50] 
   
   keep.features = which(features.missing <= 0.50) 
-  print(paste0("Remaining Features: ", length(keep.features)))
+  print(paste0("Protein groups that pass the 50% filteration: ", length(keep.features)))
   names(keep.features) = keep.features 
   
   remove.features = which(features.missing > 0.50)
-  print(paste0("Features Removed: ", length(remove.features)))
+  print(paste0("Number of protein groups removed from dataset: ", length(remove.features)))
   names(remove.features) = remove.features
   
   filtered = x[-which(rownames(x) %in% remove.features),]
@@ -98,7 +100,7 @@ filter.std.plotting <- function (eset, min.std,visu=TRUE)
       }
     index <- tmp > min.std
     index[is.na(index)] <- TRUE
-    cat(paste(sum(!index),"genes excluded.\n"))
+    cat(paste(sum(!index),"Proteins have a standard deviation greater than ", min.std, ".\n"))
   }
   
   if (visu)
@@ -141,87 +143,194 @@ fuzzyprep_usepreviousImputation_foldchange <- function(z)
 
 ```
 ## Hemo Data
-```{r subset_hemo, include=TRUE}
+```{r subset_hemo, include=FALSE}
 proteinGroups_dros_hemo <- RemoveContaminants(proteinGroups_dros_hemo)
 print(dim(proteinGroups_dros_hemo))
 proteinGroups_dros_hemo <- subsetLFQ(proteinGroups_dros_hemo) 
 print(dim(proteinGroups_dros_hemo))
 ```
 
-Number of missing values in Hemo dataset: `r sum(is.na(proteinGroups_dros_hemo))`
+Number of missing measurement in Hemo dataset: `r sum(is.na(proteinGroups_dros_hemo))`
 
 Filter and exclude protein groups that are missing over 50% of measurements 
-```{r filter_hemo, include=TRUE}
+```{r filter_hemo, echo=FALSE}
 filtered_dros_hemo_50percent <- remove.features.50percentcuttoff(proteinGroups_dros_hemo)
 ```
 
-Set up for bayesian pca imputation
-```{r bayesian, include=TRUE}
+Implement a bayesian pca imputation for data that is log2 transformed. The R package used is called [pcaMethod](https://www.bioconductor.org/packages/devel/bioc/manuals/pcaMethods/man/pcaMethods.pdf).
+```{r bayesian_setup, echo=FALSE}
 #subset matrix containing only samples that have been filtered 50% threshold
 hemo_50percent <- as.matrix(filtered_dros_hemo_50percent[,c(4:11)])
 #log2 transform
 hemo_50percent_log2 <- log2(hemo_50percent)
 #set row names to match protein group identifer number
 rownames(hemo_50percent_log2) <- filtered_dros_hemo_50percent$id
+colnames(hemo_50percent_log2) <- c("Ctr_1hr", "1hr", "Ctr_4hr","4hr", "Ctr_8hr", "8hr", "Ctr_24hr", "24hr")
 
+hemo_meta <- data.frame(HemoTimePoints = colnames(hemo_50percent_log2),Sample_Type=rep(c("Control","TBI"),4))
+```
+
+
+
+```{r bayesian, include=TRUE}
 #PCA function utelizing method=bpca "bayesian"
 pc_hemolog2 <- pca(hemo_50percent_log2, nPcs = 3, method = "bpca") #pca method
 #extract imputed data set for hemo data
 imputed_hemo <- completeObs(pc_hemolog2)
 ```
 
-Split data up between the controls and the TBI samples
-```{r even_odd, include=TRUE}
+
+```{r pca_plot, echo=FALSE}
+palette(c("mediumorchid2","mediumturquoise","olivedrab3", "darkgoldenrod1", 
+          "hotpink3", "red2", "steelblue2", "sienna2","slategray4", 
+          "deepskyblue", "orangered", "midnightblue"))
+
+# PCA Plot for Scores of Log2(hemo data)
+sample.colors = as.numeric(factor(hemo_meta$Sample_Type))
+plot(scores(pc_hemolog2), pch = 16, col = sample.colors, main = "PCAScores Hemolymph Protein Groups Log 2 Raw Values")
+text(scores(pc_hemolog2)[,1], scores(pc_hemolog2)[,2], labels = colnames(hemo_50percent_log2), 
+       col = sample.colors)
+  legend("bottomleft", legend = levels(hemo_meta$Sample_Type), pch = 16, col = 1:length(levels(hemo_meta$Sample_Type)),
+         y.intersp = 0.7)
+  
+# PCA Plot the loadings of Log2(hemo data)
+plot(loadings(pc_hemolog2), pch = 19, col = sample.colors, main = "Loadings of Samples") 
+text(loadings(pc_hemolog2)[,1], loadings(pc_hemolog2)[,2], labels = colnames(hemo_50percent_log2), 
+       col = sample.colors)
+  legend("bottomleft", legend = levels(hemo_meta$Sample_Type), pch = 16, col = 1:length(levels(hemo_meta$Sample_Type)),
+         y.intersp = 0.7)
+
+```
+
+The distribution of the data is plotted  below before and after imputation
+```{r density_hemo, echo=FALSE}
+hist(hemo_50percent_log2, breaks = 20, xlab = "Log2(Hemo data with the 50% filter)", main = "Histogram of Hemo Data Before Imputation")
+
+```
+
+```{r even_odd, echo=FALSE}
+#Split data up between the controls and the TBI samples
 even_index <- seq(2,8,2) #TBI samples
 odd_index <- seq(1,8,2) #controls
 
+#TBI Samples
 imputed_hemo_even <- imputed_hemo[,even_index]
+#Control samples
 imputed_hemo_odd <- imputed_hemo[,odd_index]
+#Reorder data so that first 4 samples are Controls and second set of 4 are the TBI samples
 imputed_hemo_reorder <- imputed_hemo[,c(odd_index,even_index)]
+
 ```
 
+```{r density_imputed_hemo, echo=FALSE}
+hist(imputed_hemo_reorder, breaks = 20, xlab = "Log2(Imputed Hemo Data with 50% filter", main = "Histogram of Imputed Hemo Data")
+```
 
-## Hemo mFuzz Soft Clustering - reordered samples
-Control samples first 4 and TBI samples remaining 4
-```{r mfuzz_bayesian_imputed, include=TRUE}
+## Hemo mFuzz Soft Clustering
+Clustering will be implemnted on data set that contains control samples first 4 and TBI samples remaining 4.
 
-#start with the re-ordered hemo data
+First we will look at the variation of the data by calculating the standard deviation of each protein. 
+```{r mfuzz_bayesian_imputed, echo=FALSE}
+
 z = imputed_hemo_reorder # change accordingly to use in mfuzzy setup funtions
 
 exprValues.s_bayesian <- fuzzyprep_usepreviousImputation(z)
 ```
 
-Soft clustering is implemented in the function mfuzz
-fuzzy c-means algorithm from e1071 package
 
-```{r mfuzz_bayesian, include=TRUE}
+
+Soft clustering is implemented in the function mfuzz using a fuzzy c-means algorithm from e1071 package.
+```{r mfuzz_bayesian, echo=FALSE}
 error <- NA #set error to NA
 
 y = exprValues.s_bayesian #change according to version of data to perform fuzzy clustering
 ```
 
-The fuzzier "m" and the number of clusters "c" must be chosen in advanced. For "m" we choose a value that prevents clustering of random data. This fuzzy type of clustering is advantageous over hard cluster (e.g. k-means) which commonly detects clusters of random data. 
+To optimize the parameters for fuzzy clustering we must calculate the fuzzier value as well as the number of clusters to divide the data into. The fuzzier "m" and the number of clusters "c" must be chosen in advanced. For "m" we choose a value that prevents clustering of random data. This fuzzy type of clustering is advantageous over hard cluster (e.g. k-means) which commonly detects clusters of random data. 
 
 The function mestimate 
- 
-```{r mfuzz_bayesian_imputed_error, include=TRUE}
+```{r mfuzz_fuzzier, echo=FALSE}
 m1 <- mestimate(y) 
+print(paste0("fuzzier m = ",m1))
+```
 
-# 
+```{r mfuzz_numberOfClusters, include=TRUE}
+# Find the error associated with number of cluster 2-15
 for(i in 2:15){
   c1 <- mfuzz(y, c=i, m=m1)
   error <- rbind(error, c(i,c1$withinerror))
 }
 ```
 
-Plot error calculated from imputed hemo data set that has been reordered. 
-```{r pressure, echo=FALSE}
-plot(error[,1], error[,2])
+Plot error calculated from the number of clusters used.
+```{r Error_plot, echo=FALSE}
+plot(error[,1], error[,2], xlab = "Cluster Number", ylab = "Error")
 ```
 
-```{r numberOfClusters, echo=FALSE}
-c1 <- mfuzz(y, c=12, m=m1)
-mfuzz.plot2(y, cl=c1, mfrow = c(3,2), col.lab="black", x11=F)
+Fuzzy clusters are plotted for 6 clusters.   
+*Note first 4 samples are Controls and next set of 4 are TBI samples  
+*Note a seed has been set to keep clusters consistent.   
+```{r numberOfClusters_beforeMembership, echo=FALSE}
+c1 <- mfuzz(y, c=6, m=m1)
+set.seed(123) #set seed to keep clusters consistent
+mfuzz.plot2(y, cl=c1, mfrow = c(3,2), time.labels = c("1","4", "8", "24","1","4", "8", "24"), 
+            ylab = "Protein Changes", xlab = "Hemo Time Points (hour)",  col.lab="black", x11=F)
+```
+
+Filter out proteins from clusters with a membership score of greater than 70%. Accounting for the majority of the temporal trend.
+```{r numberOfClusters_70percentMembership, echo=FALSE}
+
+mfuzz.plot2(y, cl=c1, mfrow = c(3,2), min.mem = 0.70, time.labels = c("1","", "8", "24","1","4", "8", "24"),
+            ylab = "Protein Changes", xlab = "Hemo Time Points (hour)",  col.lab="black", x11=F)
+
+```
+
+
+How many proteins have a membership score greater than 70%, count TRUE.
+```{r membershipGreater70_reorder, echo=FALSE}
+table(rowSums(c1$membership > .70) >0)
+```
+
+Heat map of hemo samples that have a membership value greater than 70%.
+Global view of hemo samples.
+```{r heatmap_Highmembership, echo=FALSE}
+scaleRYG <- colorRampPalette(c("red","black","darkgreen"), space = "rgb")(31)
+
+
+pheatmap(
+  mat               = imputed_hemo_reorder[rowSums(c1$membership >0.7)>0,],
+  color             = scaleRYG,
+  border_color      = NA,
+  scale = "row",
+  cluster_cols = FALSE,
+  cluster_rows = TRUE,
+  clustering_distance_rows = "euclidean",
+  labels_col = c("Ctr_1hr","Ctr_4hr", "Ctr_8hr", "Ctr_24hr","1hr","4hr", "8hr", "24hr"),
+  show_colnames     = TRUE,
+  show_rownames     = FALSE,
+  #cellwidth = 40,
+  #cellheight = .25,
+  #annotation_col    = mat_col,
+  #annotation_colors = mat_colors,
+  drop_levels       = TRUE,
+  fontsize          = 8,
+  main              = "Log2 Hemolymph Data with membership scores greater than 70% (scaled by row)"
+)
+
+```
+```{r distance_reordered,out.width='\\textwidth', fig.height = 8, fig.align='center', include=FALSE}
+
+reorder_hclust <- hclust(dist(imputed_hemo_reorder[rowSums(c1$membership >0.7)>0,], method = "euclidean"))
+
+clusters <- cutree(reorder_hclust, k = 4)
+
+plot(reorder_hclust, label= FALSE)
+
+#rect.hclust(reorder_hclust, k=4, border = "red")
+```
+
+```{r clusters_reordered, include=FALSE}
+#clusplot(imputed_hemo_reorder, clusters, lines = 0)
 ```
 
 ## Hemo mFuzz Soft Clustering - fold change
@@ -229,13 +338,77 @@ mfuzz.plot2(y, cl=c1, mfrow = c(3,2), col.lab="black", x11=F)
 ```{r mfuzz_foldchange, include=TRUE}
 imputed_hemo_fold <- imputed_hemo_reorder[,5:8]-imputed_hemo_reorder[,1:4]
 
+# subset features with fold change greater than 1.2 to cluster
+important_features_hemo_foldchange <- imputed_hemo_fold[rowSums(abs(imputed_hemo_fold)>1.2)>0,]
+
+# bin protein groups so that we describe the changes within fold changes of -2 and 2
+important_features_foldchange_compress <- important_features_hemo_foldchange
+important_features_foldchange_compress[important_features_foldchange_compress < -2] = -2.1
+important_features_foldchange_compress[important_features_foldchange_compress > 2] = 2.1
+
+table(rowSums(abs(imputed_hemo_fold)>1.2)>0)
+
+table(rowSums(abs(imputed_hemo_fold)>2)>0)
+
+table(rowSums(abs(imputed_hemo_fold)>4)>0)
+
+
+table(rowSums(abs(imputed_hemo_fold)>8)>0)
+
 ```
 
-Push Fold Change Hemo Data through Mfuzz function
+```{r heatmap_important_features_1.2, echo=FALSE}
+pheatmap(
+  mat               = important_features_hemo_foldchange, #[rowSums(c2$membership >0.5)>0,],
+  color             = scaleRYG,
+  border_color      = NA,
+  #scale = "row",
+  cluster_cols = FALSE,
+  cluster_rows = TRUE,
+  labels_col = c("1hr","4hr", "8hr", "24hr"),
+  #breaks = breaksList,
+  clustering_distance_rows = "euclidean",
+  show_colnames     = TRUE,
+  show_rownames     = FALSE,
+  #cellwidth = 40,
+  #cellheight = .25,
+  #annotation_col    = mat_col,
+  #annotation_colors = mat_colors,
+  drop_levels       = TRUE,
+  fontsize          = 10,
+  main              = "Heat map of protein groups that have a fold change less than -1.2 and greater than 1.2"
+)
+
+pheatmap(
+  mat               = important_features_foldchange_compress, #[rowSums(c2$membership >0.5)>0,],
+  color             = scaleRYG,
+  border_color      = NA,
+  #scale = "row",
+  cluster_cols = FALSE,
+  cluster_rows = TRUE,
+  labels_col = c("1hr","4hr", "8hr", "24hr"),
+  #breaks = breaksList,
+  clustering_distance_rows = "euclidean",
+  show_colnames     = TRUE,
+  show_rownames     = FALSE,
+  #cellwidth = 40,
+  #cellheight = .25,
+  #annotation_col    = mat_col,
+  #annotation_colors = mat_colors,
+  drop_levels       = TRUE,
+  fontsize          = 10,
+  main              = "Fold Change with compressed Hemo Data, binning <-2 and >2"
+)
+
+
+```
+
+
+# Fold Change Hemo Data Fuzzy Clustering
 ```{r mfuzz_bayesian_imputed_foldchange, include=TRUE}
 
 #start with the re-ordered hemo data
-z = imputed_hemo_fold # change accordingly to use in mfuzzy setup funtions
+z = important_features_foldchange_compress # change accordingly to use in mfuzzy setup funtions
 
 exprValues.s_bayesian <- fuzzyprep_usepreviousImputation_foldchange(z)
 ```
@@ -265,7 +438,15 @@ plot(error[,1], error[,2])
 
 ```{r numberOfClusters_foldchange, echo=FALSE}
 c1 <- mfuzz(y, c=6, m=m1)
-mfuzz.plot2(y, cl=c1, mfrow = c(3,2), col.lab="black", x11=F)
+mfuzz.plot2(y, cl=c1, mfrow = c(3,2), time.labels = c("1hr","4hr", "8hr", "24hr"), 
+            ylab = "Protein Changes", xlab = "Hemo Time Points",  col.lab="black", x11=F)
+mfuzz.plot2(y, cl=c1, mfrow = c(3,2), time.labels = c("1hr","4hr", "8hr", "24hr"), 
+            min.mem = 0.50, ylim.set = c(-2,2), ylab = "Protein Changes", xlab = "Hemo Time Points",  col.lab="black", x11=F)
+
 ```
+
+
+
+
 
 Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.

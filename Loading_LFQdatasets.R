@@ -1,7 +1,7 @@
 ##################################Load Packages #################################################
 source("https://bioconductor.org/biocLite.R")
 biocLite("pcaMethods")
-
+install.packages('GOplot')
 devtools::install_github("xia-lab/MetaboAnalystR", build_vignettes=TRUE)
 BiocManager::install("ComplexHeatmap", version = "3.8")
 BiocManager::install("topGO", version = "3.8")
@@ -20,8 +20,8 @@ library(ComplexHeatmap)
 library(RColorBrewer)
 library(viridis)
 library(topGO)
-install.packages('GOplot')
 library(GOplot)
+library(cluster)
 
 ##################################### Load Data ####################################################
 
@@ -121,7 +121,7 @@ filter.std.plotting <- function (eset, min.std,visu=TRUE){
     }
     index <- tmp > min.std
     index[is.na(index)] <- TRUE
-    cat(paste(sum(!index),"genes excluded.\n"))
+    cat(paste(sum(!index),"Proteins excluded.\n"))
   }
   
   if (visu)
@@ -224,6 +224,7 @@ important_features_hemo_foldchange <- imputed_hemo_fold[rowSums(abs(imputed_hemo
 
 # Hemo mFuzz Soft Clustering----------------------------------------------------
 z = important_features_hemo_foldchange # change accordingly to use in mfuzzy setup funtions
+z = imputed_hemo_reorder
 exprValues.s_imput <- fuzzyprep_imputation_included(Z)
 exprValues.s_bayesian <- fuzzyprep_usepreviousImputation(z)
 exprValues.s_bayesian_foldchange <- fuzzyprep_usepreviousImputation_foldchange(z)
@@ -233,13 +234,13 @@ exprValues.s_bayesian_foldchange <- fuzzyprep_usepreviousImputation_foldchange(z
 
 error <- NA
 
-y = exprValues.s_bayesian_foldchange#change according to version of data to perform fuzzy clustering
+y = exprValues.s_bayesian#change according to version of data to perform fuzzy clustering
 m1 <- mestimate(y) 
 
 
 for(i in 2:15){
-  c2 <- mfuzz(y, c=i, m=m1)
-  error <- rbind(error, c(i,c2$withinerror))
+  c1 <- mfuzz(y, c=i, m=m1)
+  error <- rbind(error, c(i,c1$withinerror))
 }
 
 plot(error[,1], error[,2])
@@ -249,7 +250,7 @@ c1 <- mfuzz(y, c=6, m=m1)
 c2 <- mfuzz(y, c=4, m=m1)
 #pdf(file = "20181022_Phosphosites_SoftClusters.pdf")
 #par(mar=c(3,3,1,1))
-mfuzz.plot2(y, cl=c1, mfrow = c(3,2), time.labels = c("1hr","4hr", "8hr", "24hr","1hr","4hr", "8hr", "24hr"), 
+mfuzz.plot2(y, cl=c1, mfrow = c(3,2), time.labels = c("Ctr_1hr","Ctr_4hr", "Ctr_8hr", "Ctr_24hr","1hr","4hr", "8hr", "24hr"), 
             ylab = "Protein Changes", xlab = "Hemo Time Points",  col.lab="black", x11=F)
 mfuzz.plot2(y, cl=c1, mfrow = c(3,2), min.mem = 0.70, time.labels = c("1hr","4hr", "8hr", "24hr","1hr","4hr", "8hr", "24hr"), 
             ylab = "Protein Changes", xlab = "Hemo Time Points",  col.lab="black", x11=F)
@@ -287,17 +288,23 @@ cluster2_hemo_proteins <-  proteinGroups_dros_hemo[rownames(proteinGroups_dros_h
 genes_cluster2 <- cluster2_hemo_proteins$Gene.names
 write.csv(cluster2_hemo_proteins, "cluster2_hemo_proteins.csv")
 
+#distance clustering reordered hemolympth data
+#dis <- dist(imputed_hemo_cluster2_fold,method = "euclidean")
+#distance = dist(imputed_hemo_cluster2_fold, method = "euclidean")
+#row.cluster = hclust(imputed_hemo_cluster2_fold, method = "aver")
+
+
+reorder_hclust <- hclust(dist(imputed_hemo_reorder[rowSums(c1$membership >0.7)>0,], method = "euclidean"))
+
+clusters <- cutree(reorder_hclust, k = 6)
+
+par(mar=c(3,4,3,3)+0.1)
+plot(reorder_hclust, label= FALSE)
+
+rect.hclust(reorder_hclust, k=6, border = "red")
+
 scaleRYG <- colorRampPalette(c("red","black","darkgreen"), space = "rgb")(31)
-dis <- dist(imputed_hemo_cluster2_fold,method = "euclidean")
-
-distance = dist(imputed_hemo_cluster2_fold, method = "euclidean")
-row.cluster = hclust(imputed_hemo_cluster2_fold, method = "aver")
-
-
-
 breaksList = c(-10,seq(-2, 2, length.out = 28),10)
-pheatmap(imputed_hemo_cluster2_fold, color = colorRampPalette(rev(brewer.pal(n = 5, name = "YlOrRd")))(length(breaksList)), # Defines the vector of colors for the legend (it has to be of the same lenght of breaksList)
-         breaks = breaksList) 
 
 pheatmap(
   mat               = imputed_hemo_reorder[rowSums(c1$membership >0.7)>0,],
@@ -318,7 +325,7 @@ pheatmap(
   main              = "Default Heatmap"
 )
 
-table(rowSums(abs(imputed_hemo_fold)>0.5)>0)
+table(rowSums(abs(imputed_hemo_fold)>1.2)>0)
 p <- pheatmap(
   mat               = imputed_hemo_fold[rowSums(abs(imputed_hemo_fold)>1.2)>0,], #[rowSums(c2$membership >0.5)>0,],
   color             = scaleRYG,
@@ -326,6 +333,7 @@ p <- pheatmap(
   #scale = "row",
   cluster_cols = FALSE,
   cluster_rows = TRUE,
+  labels_col = c("1hr","4hr", "8hr", "24hr"),
   breaks = breaksList,
   clustering_distance_rows = "euclidean",
   show_colnames     = TRUE,
@@ -336,7 +344,7 @@ p <- pheatmap(
   #annotation_colors = mat_colors,
   drop_levels       = TRUE,
   fontsize          = 10,
-  main              = "Default Heatmap"
+  main              = "Fold Change relative to Control - Hemo"
 )
 dev.off()
 
@@ -352,6 +360,7 @@ pheatmap(
   #scale = "row",
   cluster_cols = FALSE,
   cluster_rows = TRUE,
+  labels_col = c("1hr","4hr", "8hr", "24hr"),
   #breaks = breaksList,
   clustering_distance_rows = "euclidean",
   show_colnames     = TRUE,
@@ -362,7 +371,7 @@ pheatmap(
   #annotation_colors = mat_colors,
   drop_levels       = TRUE,
   fontsize          = 10,
-  main              = "Default Heatmap"
+  main              = "Fold Change with compressed Hemo Data, binning <-2 and >2"
 )
 dev.off()
 fold_hclust <- hclust(dist(important_features_foldchange_compress, method = "euclidean"))
@@ -375,11 +384,12 @@ plot(fold_hclust, label= FALSE)
 #rect.hclust(fold_hclust, k = 20, border = "red")
 rect.hclust(fold_hclust, k=3, border = "red")
 
-library(cluster)
+
 cluster2 <- kmeans(t(as.matrix(imputed_hemo_fold[rowSums(abs(imputed_hemo_fold)>1.2)>0,])),10)
 
 clusplot(important_features_foldchange_compress, clusters, lines = 0)
 clusplot(imputed_hemo_fold[rowSums(abs(imputed_hemo_fold)>1.2)>0,], cluster2, lines = 0)
+clusplot(as.matrix(reorder_hclust), clusters, lines = 0)
 
 write.csv(cluster1, "HemoOrdered_bayesian_cluster1Info.csv")
 write.csv(cluster2, "HemoOrdered_bayesian_cluster2Info.csv")
