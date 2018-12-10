@@ -403,6 +403,15 @@ pheatmap(
 
 ```
 
+```{r mfuzz_clustering, include=TRUE}
+fold_hclust <- hclust(dist(important_features_foldchange_compress, method = "euclidean"))
+clusters <- cutree(fold_hclust, k = 6) #k = 20)
+
+clusplot(important_features_foldchange_compress, clusters, lines = 0)
+
+plot(fold_hclust, label= FALSE)
+rect.hclust(fold_hclust, k=6, border = "red")
+```
 
 # Fold Change Hemo Data Fuzzy Clustering
 ```{r mfuzz_bayesian_imputed_foldchange, include=TRUE}
@@ -446,7 +455,269 @@ mfuzz.plot2(y, cl=c1, mfrow = c(3,2), time.labels = c("1hr","4hr", "8hr", "24hr"
 ```
 
 
+## Head Data
 
+```{r subset_head, include=TRUE}
+proteinGroups_dros_heads <- RemoveContaminants(proteinGroups_dros_heads)
+print(dim(proteinGroups_dros_heads))
+proteinGroups_dros_heads <- subsetLFQ(proteinGroups_dros_heads) 
+print(dim(proteinGroups_dros_heads))
+```
+
+Number of missing measurement in Head dataset: `r sum(is.na(proteinGroups_dros_heads))`
+
+Filter and exclude protein groups that are missing over 50% of measurements 
+```{r filter_head, echo=FALSE}
+filtered_dros_head_50percent <- remove.features.50percentcuttoff(proteinGroups_dros_heads)
+```
+
+Implement a bayesian pca imputation for data that is log2 transformed. The R package used is called [pcaMethod](https://www.bioconductor.org/packages/devel/bioc/manuals/pcaMethods/man/pcaMethods.pdf).
+```{r bayesian_setup_head, include=TRUE}
+#subset matrix containing only samples that have been filtered 50% threshold
+head_50percent <- as.matrix(filtered_dros_head_50percent[,c(5:38)])
+#log2 transform
+head_50percent_log2 <- log2(head_50percent)
+#set row names to match protein group identifer number
+rownames(head_50percent_log2) <- filtered_dros_head_50percent$id
+
+colnames(head_50percent_log2) <- as.numeric(gsub(".*_","",colnames(head_50percent_log2)))
+
+col_levels <- levels(colnames(head_50percent_log2)) <- seq(1:34)
+colnames(head_50percent_log2) <- order(colnames(head_50percent_log2))
+
+col_names <- names(colnames(head_50percent_log2)) <- order(colnames(head_50percent_log2))
+
+head_meta <- data.frame(HeadTimePoints = order(col_levels),Sample_Type=rep(c("Control","TBI"),17))
+
+head_50percent_log2 <- head_50percent_log2[,names(colnames(head_50percent_log2))]
+
+```
+
+```{r bayesian_heads, include=TRUE}
+#PCA function utelizing method=bpca "bayesian"
+pc_headlog2 <- pca(head_50percent_log2, nPcs = 3, method = "bpca") #pca method
+#extract imputed data set for hemo data
+imputed_head <- completeObs(pc_headlog2)
+```
+
+```{r pca_plot_head, echo=FALSE}
+palette(c("mediumorchid2","mediumturquoise","olivedrab3", "darkgoldenrod1", 
+          "hotpink3", "red2", "steelblue2", "sienna2","slategray4", 
+          "deepskyblue", "orangered", "midnightblue"))
+
+# PCA Plot for Scores of Log2(hemo data)
+sample.colors = as.numeric(factor(head_meta$Sample_Type))
+plot(scores(pc_headlog2), pch = 16, col = sample.colors, main = "PCAScores Head Protein Groups Log 2 Raw Values")
+text(scores(pc_headlog2)[,1], scores(pc_headlog2)[,2], labels = colnames(head_50percent_log2), 
+       col = sample.colors)
+  legend("bottomleft", legend = levels(head_meta$Sample_Type), pch = 16, col = 1:length(levels(head_meta$Sample_Type)),
+         y.intersp = 0.7)
+  
+# PCA Plot the loadings of Log2(head data)
+plot(loadings(pc_headlog2), pch = 19, col = sample.colors, main = "Loadings of Samples") 
+text(loadings(pc_headlog2)[,1], loadings(pc_headlog2)[,2], labels = colnames(head_50percent_log2), 
+       col = sample.colors)
+  legend("bottomleft", legend = levels(head_meta$Sample_Type), pch = 16, col = 1:length(levels(head_meta$Sample_Type)),
+         y.intersp = 0.7)
+
+```
+
+The distribution of the data is plotted  below before and after imputation
+```{r density_head, echo=FALSE}
+hist(head_50percent_log2, breaks = 20, xlab = "Log2(head data with the 50% filter)", main = "Histogram of head Data Before Imputation")
+
+```
+
+```{r even_odd_head, echo=FALSE}
+#Split data up between the controls and the TBI samples
+even_index <- seq(2,34,2) #TBI samples
+odd_index <- seq(1,34,2) #controls
+
+#TBI Samples
+imputed_head_even <- imputed_head[,even_index]
+#Control samples
+imputed_head_odd <- imputed_head[,odd_index]
+#Reorder data so that first 4 samples are Controls and second set of 4 are the TBI samples
+imputed_head_reorder <- imputed_head[,c(odd_index,even_index)]
+
+```
+
+```{r density_imputed_head, echo=FALSE}
+hist(imputed_head_reorder, breaks = 20, xlab = "Log2(Imputed head Data with 50% filter", main = "Histogram of Imputed head Data")
+```
+
+## Head mFuzz Soft Clustering
+Clustering will be implemnted on data set that contains control samples first 17 and TBI samples remaining 17.
+
+First we will look at the variation of the data by calculating the standard deviation of each protein. 
+```{r mfuzz_bayesian_headimputed, echo=FALSE}
+
+z = imputed_head_reorder # change accordingly to use in mfuzzy setup funtions
+
+exprValues.s_bayesian <- fuzzyprep_usepreviousImputation(z)
+```
+
+
+
+Soft clustering is implemented in the function mfuzz using a fuzzy c-means algorithm from e1071 package.
+```{r mfuzz_bayesian_head, echo=FALSE}
+error <- NA #set error to NA
+
+y = exprValues.s_bayesian #change according to version of data to perform fuzzy clustering
+```
+
+To optimize the parameters for fuzzy clustering we must calculate the fuzzier value as well as the number of clusters to divide the data into. The fuzzier "m" and the number of clusters "c" must be chosen in advanced. For "m" we choose a value that prevents clustering of random data. This fuzzy type of clustering is advantageous over hard cluster (e.g. k-means) which commonly detects clusters of random data. 
+
+The function mestimate 
+```{r mfuzz_fuzzier_head, echo=FALSE}
+m1 <- mestimate(y) 
+print(paste0("fuzzier m = ",m1))
+```
+
+```{r mfuzz_numberOfClusters_head, include=TRUE}
+# Find the error associated with number of cluster 2-15
+for(i in 2:20){
+  c1 <- mfuzz(y, c=i, m=m1)
+  error <- rbind(error, c(i,c1$withinerror))
+}
+```
+
+Plot error calculated from the number of clusters used.
+```{r Error_plot_head, echo=FALSE}
+plot(error[,1], error[,2], xlab = "Cluster Number", ylab = "Error")
+```
+
+Fuzzy clusters are plotted for 6 clusters.   
+*Note first 17 samples are Controls and next set of 17 are TBI samples  
+*Note a seed has been set to keep clusters consistent.   
+```{r numberOfClusters_beforeMembership_head, echo=FALSE}
+c1 <- mfuzz(y, c=12, m=m1)
+set.seed(123) #set seed to keep clusters consistent
+mfuzz.plot2(y, cl=c1, mfrow = c(3,2), time.labels = c("0",".5", "1", "2","4","6", "8", "12", "16", "24", "48", "72", "168", "336", "504", "672", "840", "0", ".5", "1", "2", "4", "6", "8", "12", "16", "24", "48", "72", "168", "336", "504", "672", "840"), 
+            ylab = "Protein Changes", xlab = "Head Time Points (hour)",  col.lab="black", x11=F)
+
+#c("0","0.02", "0.04", "0.08","0.17","0.25", "0.33", "0.50", "0.67", "1.0", "2.0", "3.0", "7.0", "14.0", "21.0", "28.0", "35.0","0.0","0.02", "0.04", "0.08","0.17","0.25", "0.33", "0.50", "0.67", "1.0", "2.0", "3.0", "7.0", "14.0", "21.0", "28.0", "35.0")
+```
+
+How many proteins have a membership score greater than 70%, count TRUE.
+```{r membershipGreater70_reorder_head, echo=FALSE}
+table(rowSums(c1$membership > .70) >0)
+```
+
+Heat map of head samples that have a membership value greater than 70%.
+Global view of head samples.
+```{r heatmap_Highmembership_head, echo=FALSE}
+scaleRYG <- colorRampPalette(c("red","black","darkgreen"), space = "rgb")(31)
+
+
+pheatmap(
+  mat               = imputed_head_reorder[rowSums(c1$membership >0.7)>0,],
+  color             = scaleRYG,
+  border_color      = NA,
+  scale = "row",
+  cluster_cols = FALSE,
+  cluster_rows = TRUE,
+  clustering_distance_rows = "euclidean",
+  labels_col = c("0","Ctr_.5 hr", "Ctr_1 hr", "Ctr_2 hr","Ctr_4 hr","Ctr_6 hr", "Ctr_8 hr", "Ctr_12 hr", "Ctr_16 hr", "Ctr_24 hr", "Ctr_48 hr", "Ctr_72 hr", "Ctr_168 hr", "Ctr_336 hr", "Ctr_504 hr", "Ctr_672 hr", "Ctr_840 hr", "0",".5 hr", "1 hr", "2 hr","4 hr","6 hr", "8 hr", "12 hr", "16 hr", "24 hr", "48 hr", "72 hr", "168 hr", "336 hr", "504 hr", "672 hr", "840 hr"),
+  show_colnames     = TRUE,
+  show_rownames     = FALSE,
+  #cellwidth = 40,
+  #cellheight = .25,
+  #annotation_col    = mat_col,
+  #annotation_colors = mat_colors,
+  drop_levels       = TRUE,
+  fontsize          = 8,
+  main              = "Log2 Head Data with membership scores greater than 70% (scaled by row)"
+)
+
+```
+
+```{r distance_reordered_head,out.width='\\textwidth', fig.height = 8, fig.align='center', include=FALSE}
+
+reorder_hclust <- hclust(dist(imputed_head_reorder[rowSums(c1$membership >0.7)>0,], method = "euclidean"))
+
+clusters <- cutree(reorder_hclust, k = 20)
+
+plot(reorder_hclust, label= FALSE)
+
+#rect.hclust(reorder_hclust, k=20, border = "red")
+```
+
+```{r clusters_reordered_head, include=FALSE}
+#clusplot(imputed_head_reorder, clusters, lines = 0)
+```
+
+## Head mFuzz Soft Clustering - fold change
+
+```{r mfuzz_foldchange_head, include=TRUE}
+imputed_head_fold <- imputed_head_reorder[,18:34]-imputed_head_reorder[,1:17]
+
+# subset features with fold change greater than 1.2 to cluster
+important_features_head_foldchange <- imputed_head_fold[rowSums(abs(imputed_head_fold)>1.2)>0,]
+
+table(rowSums(abs(imputed_head_fold)>1.2)>0)
+
+table(rowSums(abs(imputed_head_fold)>2)>0)
+
+table(rowSums(abs(imputed_head_fold)>4)>0)
+
+
+table(rowSums(abs(imputed_head_fold)>8)>0)
+
+
+# bin protein groups so that we describe the changes within fold changes of -2 and 2
+important_features_foldchange_compress <- important_features_head_foldchange
+important_features_foldchange_compress[important_features_foldchange_compress < -2] = -2.1
+important_features_foldchange_compress[important_features_foldchange_compress > 2] = 2.1
+
+
+```
+
+```{r heatmap_important_features_1.2_head, echo=FALSE}
+pheatmap(
+  mat               = important_features_head_foldchange, #[rowSums(c2$membership >0.5)>0,],
+  color             = scaleRYG,
+  border_color      = NA,
+  #scale = "row",
+  cluster_cols = FALSE,
+  cluster_rows = TRUE,
+  labels_col = c("0",".5 hr", "1 hr", "2 hr","4 hr","6 hr", "8 hr", "12 hr", "16 hr", "24 hr", "48 hr", "72 hr", "168 hr", "336 hr", "504 hr", "672 hr", "840 hr"),
+  #breaks = breaksList,
+  clustering_distance_rows = "euclidean",
+  show_colnames     = TRUE,
+  show_rownames     = FALSE,
+  #cellwidth = 40,
+  #cellheight = .25,
+  #annotation_col    = mat_col,
+  #annotation_colors = mat_colors,
+  drop_levels       = TRUE,
+  fontsize          = 10,
+  main              = "Heat map of head protein groups that have a fold change less than -1.2 and greater than 1.2"
+)
+
+pheatmap(
+  mat               = important_features_foldchange_compress, #[rowSums(c2$membership >0.5)>0,],
+  color             = scaleRYG,
+  border_color      = NA,
+  #scale = "row",
+  cluster_cols = FALSE,
+  cluster_rows = TRUE,
+  labels_col = c("1hr","4hr", "8hr", "24hr"),
+  #breaks = breaksList,
+  clustering_distance_rows = "euclidean",
+  show_colnames     = TRUE,
+  show_rownames     = FALSE,
+  #cellwidth = 40,
+  #cellheight = .25,
+  #annotation_col    = mat_col,
+  #annotation_colors = mat_colors,
+  drop_levels       = TRUE,
+  fontsize          = 10,
+  main              = "Fold Change with compressed Hemo Data, binning <-2 and >2"
+)
+
+
+```
 
 
 Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
