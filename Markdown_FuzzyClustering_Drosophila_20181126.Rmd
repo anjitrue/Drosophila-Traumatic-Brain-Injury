@@ -1,6 +1,6 @@
 ---
-title: "Loading_LFQ"
-author: "Anji Trujillo"
+title: "Drosophila Traumatic Brain Injury"
+author: "Anji Trujillo - Professor Coon"
 date: "December 8, 2018"
 output: html_document
 ---
@@ -11,8 +11,11 @@ opts_knit$set(root.dir = "E:/Projects/Proteomics/")
 knitr::opts_chunk$set(root.dir = "E:/Projects/Proteomics/", warning = FALSE, message = FALSE)
 ```
 
-This is an R Markdown document for Drosophila Traumatic Brain injury. The data includes proteomic data for Drosophila head and hemolymph.
+This is an R Markdown Document describing the proteomics data collected for the Drosophila Traumatic Brain Injury Project in collaboration with Professor Wassarman and Becky Steinbrech. The samples analyzed were derived from heads and hemolymph of Drosophilla melanogaster. For the head samples, there are 17 time points with a control and a traumatic brain injury (TBI) sample at each time point. The hemolymph sample is a shorter temporal study with control and traumatic brain injury samples for 4 time points.
 
+Proteomics data was collected September 22, 2018 and searched on October 16, 2018. The initial analysis was performed December 9, 2018.
+
+The head and hemolymph data was searched separately with an appropriate fractionated sample to increase our protein group resolution. 
 
 ```{r install_packages, echo=FALSE}
 library(readr)
@@ -26,21 +29,21 @@ library(e1071)
 library(dplyr)
 library(Mfuzz)
 library(cluster)
+library(yaml)
 library(Rcpp)
 ```
 
 ## Load data
 ```{r load_data, echo=FALSE}
 proteinGroups_dros_hemo <- read_delim("E:/Projects/Proteomics/DorsophilaHead_Experiment/txt_hemo_plusFrac/proteinGroups.txt","\t", escape_double = FALSE, trim_ws = TRUE)
-print(paste0("Number of protein groups in Hemolymph Data before any filtering: ", nrow(proteinGroups_dros_hemo), "\n", "Number of columns: ", ncol(proteinGroups_dros_hemo)))
+cat(paste0("Number of protein groups in Hemolymph Data before any filtering of missing measurements: ", nrow(proteinGroups_dros_hemo))) #, "\n", "Number of columns: ", ncol(proteinGroups_dros_hemo)))
 #proteinGroups_dros_hemo <- data.frame(proteinGroups_dros_hemo)
 proteinGroups_dros_heads <- read_delim("E:/Projects/Proteomics/DorsophilaHead_Experiment/txt_dros_heads_plusFrac/proteinGroups__dros_heads_plusFrac.txt","\t", escape_double = FALSE, trim_ws = TRUE)
-print(paste0("Number of protein groups in Heads Data before any filtering: ", nrow(proteinGroups_dros_heads), "\n", "Number of columns: ", ncol(proteinGroups_dros_heads)))
+cat(paste0("Number of protein groups in Heads Data before any filtering of missing measurements: ", nrow(proteinGroups_dros_heads))) #, "\n", "Number of columns: ", ncol(proteinGroups_dros_heads)))
 
 ```
 
-
-Functions I have made to change the data  
+The data analysis was performed using R. The following functions were written to manipulate the data:  
 1. Remove Contaminants and Reverse Sequences  
 2. Subset columns only with protein ID's, number identifier, and Gene Name  
 3. 50% data cut off, filters data to exclude proteins that have more than 50% of measurements missing 
@@ -142,7 +145,15 @@ fuzzyprep_usepreviousImputation_foldchange <- function(z)
 }
 
 ```
-## Hemo Data
+## Hemolymph Data
+The hemolymph data includes samples for the first 24 hours (1,4,8,24 hrs) after traumatic brain injury has been implemented. The data analysis will:  
+1. Clean proteomics data from  MaxQuant search algorithm output  
+2. Distribution of proteomic data before and after Bayesian imputation.  
+3. PCA plots describing the variation in protein groups (scores) and the variation in the samples (loading) 
+4. Fuzzy Clustering and hierarchical plots  
+5. Clustering is also performed on fold change data
+
+
 ```{r subset_hemo, include=FALSE}
 proteinGroups_dros_hemo <- RemoveContaminants(proteinGroups_dros_hemo)
 print(dim(proteinGroups_dros_hemo))
@@ -179,30 +190,16 @@ pc_hemolog2 <- pca(hemo_50percent_log2, nPcs = 3, method = "bpca") #pca method
 imputed_hemo <- completeObs(pc_hemolog2)
 ```
 
-
-```{r pca_plot, echo=FALSE}
-palette(c("mediumorchid2","mediumturquoise","olivedrab3", "darkgoldenrod1", 
-          "hotpink3", "red2", "steelblue2", "sienna2","slategray4", 
-          "deepskyblue", "orangered", "midnightblue"))
-
-# PCA Plot for Scores of Log2(hemo data)
-sample.colors = as.numeric(factor(hemo_meta$Sample_Type))
-plot(scores(pc_hemolog2), pch = 16, col = sample.colors, main = "PCAScores Hemolymph Protein Groups Log 2 Raw Values")
-text(scores(pc_hemolog2)[,1], scores(pc_hemolog2)[,2], labels = colnames(hemo_50percent_log2), 
-       col = sample.colors)
-  legend("bottomleft", legend = levels(hemo_meta$Sample_Type), pch = 16, col = 1:length(levels(hemo_meta$Sample_Type)),
-         y.intersp = 0.7)
-  
-# PCA Plot the loadings of Log2(hemo data)
-plot(loadings(pc_hemolog2), pch = 19, col = sample.colors, main = "Loadings of Samples") 
-text(loadings(pc_hemolog2)[,1], loadings(pc_hemolog2)[,2], labels = colnames(hemo_50percent_log2), 
-       col = sample.colors)
-  legend("bottomleft", legend = levels(hemo_meta$Sample_Type), pch = 16, col = 1:length(levels(hemo_meta$Sample_Type)),
-         y.intersp = 0.7)
-
+```{r write_csv_imputedhemo, echo=FALSE}
+subset <- proteinGroups_dros_hemo[,1:2]
+subset = subset[which(rownames(subset) %in% rownames(imputed_hemo)), ]
+imputed_hemo_subset <- data.frame(subset,imputed_hemo)
+colnames(imputed_hemo_subset) <- c("Protein.ID" , "Gene.ID", "Ctr_1hr", "1hr", "Ctr_4hr","4hr", "Ctr_8hr", "8hr", "Ctr_24hr", "24hr")
+write.csv(imputed_hemo_subset, "E:/Projects/Proteomics/DorsophilaHead_Experiment/Imputed_hemo_log2.csv")
 ```
 
-The distribution of the data is plotted  below before and after imputation
+
+The distribution of the data bfore and after Bayesian imputation, plotted  below.
 ```{r density_hemo, echo=FALSE}
 hist(hemo_50percent_log2, breaks = 20, xlab = "Log2(Hemo data with the 50% filter)", main = "Histogram of Hemo Data Before Imputation")
 
@@ -226,10 +223,36 @@ imputed_hemo_reorder <- imputed_hemo[,c(odd_index,even_index)]
 hist(imputed_hemo_reorder, breaks = 20, xlab = "Log2(Imputed Hemo Data with 50% filter", main = "Histogram of Imputed Hemo Data")
 ```
 
-## Hemo mFuzz Soft Clustering
-Clustering will be implemnted on data set that contains control samples first 4 and TBI samples remaining 4.
+A global view of the data can visualized by PCA analysis. Imputed data is used from here on forward     
+* The first PCA is a plot where each dot represents a protein (6,030 proteins), the text denote which sample the protein group derives from, and the color indicates either control or TBI sample type.  
+* In the second PCA plot the loadings describe the variance in each of the hemolymph samples determined by protein group. Each dot is a hymolymph sample and the color indicates either control or TBI sample type.  
+```{r pca_plot, echo=FALSE}
+palette(c("mediumorchid2","mediumturquoise","olivedrab3", "darkgoldenrod1", 
+          "hotpink3", "red2", "steelblue2", "sienna2","slategray4", 
+          "deepskyblue", "orangered", "midnightblue"))
 
-First we will look at the variation of the data by calculating the standard deviation of each protein. 
+# PCA Plot for Scores of Log2(hemo data)
+sample.colors = as.numeric(factor(hemo_meta$Sample_Type))
+plot(scores(pc_hemolog2), pch = 16, col = sample.colors, main = "PCAScores Hemolymph Log2(Protein)")
+text(scores(pc_hemolog2)[,1], scores(pc_hemolog2)[,2], labels = colnames(hemo_50percent_log2), 
+       col = sample.colors)
+  legend("bottomright", legend = levels(hemo_meta$Sample_Type), pch = 16, col = 1:length(levels(hemo_meta$Sample_Type)),
+         y.intersp = 0.7)
+  
+# PCA Plot the loadings of Log2(hemo data)
+plot(loadings(pc_hemolog2), pch = 19, col = sample.colors, main = "PCALoadings") 
+text(loadings(pc_hemolog2)[,1], loadings(pc_hemolog2)[,2], labels = colnames(hemo_50percent_log2), 
+       col = sample.colors)
+  legend("bottomleft", legend = levels(hemo_meta$Sample_Type), pch = 16, col = 1:length(levels(hemo_meta$Sample_Type)),
+         y.intersp = 0.7)
+
+```
+
+  
+## Hemo mFuzz Soft Clustering
+Clustering will be implemnted on the proteomics data set that that has been organized such that control samples are the first and TBI samples are following.
+
+Prior to fuzzy clustering the variation for each protein plotted. 
 ```{r mfuzz_bayesian_imputed, echo=FALSE}
 
 z = imputed_hemo_reorder # change accordingly to use in mfuzzy setup funtions
@@ -239,14 +262,16 @@ exprValues.s_bayesian <- fuzzyprep_usepreviousImputation(z)
 
 
 
-Soft clustering is implemented in the function mfuzz using a fuzzy c-means algorithm from e1071 package.
+Soft clustering is implemented in the function mfuzz using a fuzzy c-means algorithm from [e1071](https://cran.r-project.org/web/packages/e1071/e1071.pdf) package.
 ```{r mfuzz_bayesian, echo=FALSE}
 error <- NA #set error to NA
 
 y = exprValues.s_bayesian #change according to version of data to perform fuzzy clustering
 ```
 
-To optimize the parameters for fuzzy clustering we must calculate the fuzzier value as well as the number of clusters to divide the data into. The fuzzier "m" and the number of clusters "c" must be chosen in advanced. For "m" we choose a value that prevents clustering of random data. This fuzzy type of clustering is advantageous over hard cluster (e.g. k-means) which commonly detects clusters of random data. 
+Fuzzy clustering is one many types of clustering algoriths to choose from e.g. K-means, hierarchical, bayesian, etc. I will show fuzzy clustering along with hierarchical clustering to visualize the protein trends we see for through out the timepoint. The clustering will be performed first on data set that includes both the control and TBI samples and then performed on the fold change data relative to control.
+
+To begin th we must first optimize the parameters for fuzzy clustering we must calculate the fuzzier value as well as the number of clusters to divide the data into. The fuzzier "m" and the number of clusters "c" must be chosen in advanced. This fuzzy type of clustering is advantageous over hard cluster (e.g. k-means) which commonly detects clusters of random data. 
 
 The function mestimate 
 ```{r mfuzz_fuzzier, echo=FALSE}
@@ -262,7 +287,7 @@ for(i in 2:15){
 }
 ```
 
-Plot error calculated from the number of clusters used.
+Look at the error calculated for each of the clusters.
 ```{r Error_plot, echo=FALSE}
 plot(error[,1], error[,2], xlab = "Cluster Number", ylab = "Error")
 ```
@@ -318,6 +343,8 @@ pheatmap(
 )
 
 ```
+
+
 ```{r distance_reordered,out.width='\\textwidth', fig.height = 8, fig.align='center', include=FALSE}
 
 reorder_hclust <- hclust(dist(imputed_hemo_reorder[rowSums(c1$membership >0.7)>0,], method = "euclidean"))
@@ -335,8 +362,13 @@ plot(reorder_hclust, label= FALSE)
 
 ## Hemo mFuzz Soft Clustering - fold change
 
+Fuzzy clustering is performed on fold change data set. The fold change was calculated relative to controls. We will look at clustering of proteins that have a fold change greater than 1.2. There are fold changes in the hemolymph data that are greater than 8, and these proteins with extreme fold changes must be looked at in depth. However to reduce their bias on clustering, I have implemented a binning strategy that takes a look at the data set between logfold -2 and 2, compressing the larger fold changes down to fold change of 2.1. This way we can see how the protein groups bin at a more granular level. 
+
+I have added fuzzy clustering at the end of this section, however I dont believe fuzzy clustering will be the best strategy for visualizing the clusters. There are hierarchical clusters and a clusplot at the beginning of this section, to help determine the number of clusters the data partitions into.
 ```{r mfuzz_foldchange, include=TRUE}
 imputed_hemo_fold <- imputed_hemo_reorder[,5:8]-imputed_hemo_reorder[,1:4]
+
+write.csv(imputed_hemo_fold, "E:/Projects/Proteomics/DorsophilaHead_Experiment/Imputed_hemo_foldchange.csv")
 
 # subset features with fold change greater than 1.2 to cluster
 important_features_hemo_foldchange <- imputed_hemo_fold[rowSums(abs(imputed_hemo_fold)>1.2)>0,]
@@ -346,15 +378,24 @@ important_features_foldchange_compress <- important_features_hemo_foldchange
 important_features_foldchange_compress[important_features_foldchange_compress < -2] = -2.1
 important_features_foldchange_compress[important_features_foldchange_compress > 2] = 2.1
 
+# Protein groups with fold change greater than 1.2
 table(rowSums(abs(imputed_hemo_fold)>1.2)>0)
 
+# Protein groups with fold change greater than 2
 table(rowSums(abs(imputed_hemo_fold)>2)>0)
 
+# Protein groups with fold change greater than 4
 table(rowSums(abs(imputed_hemo_fold)>4)>0)
 
-
+# Protein groups with fold change greater than 8
 table(rowSums(abs(imputed_hemo_fold)>8)>0)
 
+```
+
+```{r write_csv_imputedhemo_foldChange, echo=FALSE}
+imputed_hemofoldChange_subset <- data.frame(subset,imputed_hemo_fold)
+colnames(imputed_hemofoldChange_subset) <- c("ProtienGroup.ID", "Gene.ID", "Hemo_1hr","Hemo_4hr", "Hemo_8hr", "Hemo_24hr")
+write.csv(imputed_hemo_subset, "E:/Projects/Proteomics/DorsophilaHead_Experiment/Imputed_hemo_foldchange.csv")
 ```
 
 ```{r heatmap_important_features_1.2, echo=FALSE}
@@ -376,7 +417,7 @@ pheatmap(
   #annotation_colors = mat_colors,
   drop_levels       = TRUE,
   fontsize          = 10,
-  main              = "Heat map of protein groups that have a fold change less than -1.2 and greater than 1.2"
+  main              = "Heat map of Hemo protiens with fold change < -1.2, > 1.2"
 )
 
 pheatmap(
@@ -462,6 +503,7 @@ proteinGroups_dros_heads <- RemoveContaminants(proteinGroups_dros_heads)
 print(dim(proteinGroups_dros_heads))
 proteinGroups_dros_heads <- subsetLFQ(proteinGroups_dros_heads) 
 print(dim(proteinGroups_dros_heads))
+
 ```
 
 Number of missing measurement in Head dataset: `r sum(is.na(proteinGroups_dros_heads))`
@@ -498,8 +540,23 @@ head_50percent_log2 <- head_50percent_log2[,names(colnames(head_50percent_log2))
 pc_headlog2 <- pca(head_50percent_log2, nPcs = 3, method = "bpca") #pca method
 #extract imputed data set for hemo data
 imputed_head <- completeObs(pc_headlog2)
+
 ```
 
+```{r write_csv_imputedhead, echo=FALSE}
+rownames(proteinGroups_dros_heads) <- proteinGroups_dros_heads$id
+subset <- proteinGroups_dros_heads[,1:2]
+subset = subset[which(rownames(subset) %in% rownames(imputed_head)), ]
+imputed_head_subset <- data.frame(subset,imputed_head)
+
+colnames(imputed_head_subset) <- c("ProtienGroup.ID", "Gene.ID","0","Ctr_.5 hr", "Ctr_1 hr", "Ctr_2 hr","Ctr_4 hr","Ctr_6 hr", "Ctr_8 hr", "Ctr_12 hr", "Ctr_16 hr", "Ctr_24 hr", "Ctr_48 hr", "Ctr_72 hr", "Ctr_168 hr", "Ctr_336 hr", "Ctr_504 hr", "Ctr_672 hr", "Ctr_840 hr", "0",".5 hr", "1 hr", "2 hr","4 hr","6 hr", "8 hr", "12 hr", "16 hr", "24 hr", "48 hr", "72 hr", "168 hr", "336 hr", "504 hr", "672 hr", "840 hr")
+
+write.csv(imputed_head_subset, "E:/Projects/Proteomics/DorsophilaHead_Experiment/Imputed_head.csv")
+```
+
+A global view of the data can visualized by PCA analysis. Imputed data is used from here.     
+* The first PCA is a plot where each dot represents a protein (7,175 proteins), the text denote which timepoint the protein group derives from, and the color indicates either control or TBI sample type.  
+* In the second PCA plot the loadings describe the variance in each of the brain samples determined by protein group. Each dot is a drosphila sample and the color indicates either control or TBI sample type. 
 ```{r pca_plot_head, echo=FALSE}
 palette(c("mediumorchid2","mediumturquoise","olivedrab3", "darkgoldenrod1", 
           "hotpink3", "red2", "steelblue2", "sienna2","slategray4", 
@@ -587,7 +644,7 @@ Plot error calculated from the number of clusters used.
 plot(error[,1], error[,2], xlab = "Cluster Number", ylab = "Error")
 ```
 
-Fuzzy clusters are plotted for 6 clusters.   
+Fuzzy clusters are plotted for 12 clusters.   
 *Note first 17 samples are Controls and next set of 17 are TBI samples  
 *Note a seed has been set to keep clusters consistent.   
 ```{r numberOfClusters_beforeMembership_head, echo=FALSE}
@@ -652,16 +709,21 @@ plot(reorder_hclust, label= FALSE)
 ```{r mfuzz_foldchange_head, include=TRUE}
 imputed_head_fold <- imputed_head_reorder[,18:34]-imputed_head_reorder[,1:17]
 
+write.csv(imputed_head_fold, "E:/Projects/Proteomics/DorsophilaHead_Experiment/Imputed_head_foldchange.csv")
+
 # subset features with fold change greater than 1.2 to cluster
 important_features_head_foldchange <- imputed_head_fold[rowSums(abs(imputed_head_fold)>1.2)>0,]
 
+# Protein groups with fold change greater than 1.2
 table(rowSums(abs(imputed_head_fold)>1.2)>0)
 
+# Protein groups with fold change greater than 2
 table(rowSums(abs(imputed_head_fold)>2)>0)
 
+# Protein groups with fold change greater than 4
 table(rowSums(abs(imputed_head_fold)>4)>0)
 
-
+# Protein groups with fold change greater than 8
 table(rowSums(abs(imputed_head_fold)>8)>0)
 
 
@@ -671,6 +733,15 @@ important_features_foldchange_compress[important_features_foldchange_compress < 
 important_features_foldchange_compress[important_features_foldchange_compress > 2] = 2.1
 
 
+```
+
+```{r write_csv_imputedhead_foldchange, echo=FALSE}
+
+imputed_headfoldChange_subset <- data.frame(subset,imputed_head_fold)
+
+colnames(imputed_headfoldChange_subset) <- c("ProtienGroup.ID", "Gene.ID","0",".5 hr", "1 hr", "2 hr","4 hr","6 hr", "8 hr", "12 hr", "16 hr", "24 hr", "48 hr", "72 hr", "168 hr", "336 hr", "504 hr", "672 hr", "840 hr")
+
+write.csv(imputed_headfoldChange_subset, "E:/Projects/Proteomics/DorsophilaHead_Experiment/Imputed_head_foldchange.csv")
 ```
 
 ```{r heatmap_important_features_1.2_head, echo=FALSE}
@@ -692,7 +763,7 @@ pheatmap(
   #annotation_colors = mat_colors,
   drop_levels       = TRUE,
   fontsize          = 10,
-  main              = "Heat map of head protein groups that have a fold change less than -1.2 and greater than 1.2"
+  main              = "Heat map of head protein with fold change < -1.2, > 1.2"
 )
 
 pheatmap(
@@ -702,7 +773,7 @@ pheatmap(
   #scale = "row",
   cluster_cols = FALSE,
   cluster_rows = TRUE,
-  labels_col = c("1hr","4hr", "8hr", "24hr"),
+  labels_col = c("0",".5 hr", "1 hr", "2 hr","4 hr","6 hr", "8 hr", "12 hr", "16 hr", "24 hr", "48 hr", "72 hr", "168 hr", "336 hr", "504 hr", "672 hr", "840 hr"),
   #breaks = breaksList,
   clustering_distance_rows = "euclidean",
   show_colnames     = TRUE,
@@ -713,11 +784,62 @@ pheatmap(
   #annotation_colors = mat_colors,
   drop_levels       = TRUE,
   fontsize          = 10,
-  main              = "Fold Change with compressed Hemo Data, binning <-2 and >2"
+  main              = "Fold Change with compressed Head Data, binning <-2 and >2"
 )
 
 
 ```
 
+```{r mfuzz_clustering_head, include=TRUE}
+fold_hclust <- hclust(dist(important_features_foldchange_compress, method = "euclidean"))
+clusters <- cutree(fold_hclust, k = 6) #k = 20)
+
+clusplot(important_features_foldchange_compress, clusters, lines = 0)
+
+plot(fold_hclust, label= FALSE)
+rect.hclust(fold_hclust, k=6, border = "red")
+```
+
+# Fold Change Head Data Fuzzy Clustering
+```{r mfuzz_bayesian_imputed_foldchange_head, include=TRUE}
+
+#start with the re-ordered hemo data
+z = important_features_foldchange_compress # change accordingly to use in mfuzzy setup funtions
+
+exprValues.s_bayesian <- fuzzyprep_usepreviousImputation_foldchange(z)
+```
+
+```{r mfuzz_bayesian_foldchange_head, include=TRUE}
+error <- NA #set error to NA
+
+y = exprValues.s_bayesian #change according to version of data to perform fuzzy clustering
+```
+
+The function mestimate 
+ 
+```{r mfuzz_bayesian_imputed_foldchange_error_, include=TRUE}
+m1 <- mestimate(y) 
+
+# 
+for(i in 2:20){
+  c1 <- mfuzz(y, c=i, m=m1)
+  error <- rbind(error, c(i,c1$withinerror))
+}
+```
+
+Plot error calculated from imputed hemo data set that has been reordered. 
+```{r error_head_foldChange, echo=FALSE}
+plot(error[,1], error[,2])
+```
+
+```{r numberOfClusters_foldchange_head, echo=FALSE}
+c1 <- mfuzz(y, c=12, m=m1)
+set.seed(123)
+mfuzz.plot2(y, cl=c1, mfrow = c(3,2), time.labels = c("0",".5", "1", "2","4","6", "8", "12", "16", "24", "48", "72", "168", "336", "504", "672", "840"),
+            ylab = "Protein Changes", xlab = "Head Time Points",  col.lab="black", x11=F)
+mfuzz.plot2(y, cl=c1, mfrow = c(3,2), time.labels = c("0",".5", "1", "2","4","6", "8", "12", "16", "24", "48", "72", "168", "336", "504", "672", "840"), 
+            min.mem = 0.50, ylim.set = c(-2,2), ylab = "Protein Changes", xlab = "Head Time Points",  col.lab="black", x11=F)
+
+```
 
 Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.

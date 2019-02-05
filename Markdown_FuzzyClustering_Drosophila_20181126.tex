@@ -1,0 +1,741 @@
+\documentclass[]{article}
+\usepackage{lmodern}
+\usepackage{amssymb,amsmath}
+\usepackage{ifxetex,ifluatex}
+\usepackage{fixltx2e} % provides \textsubscript
+\ifnum 0\ifxetex 1\fi\ifluatex 1\fi=0 % if pdftex
+  \usepackage[T1]{fontenc}
+  \usepackage[utf8]{inputenc}
+\else % if luatex or xelatex
+  \ifxetex
+    \usepackage{mathspec}
+  \else
+    \usepackage{fontspec}
+  \fi
+  \defaultfontfeatures{Ligatures=TeX,Scale=MatchLowercase}
+\fi
+% use upquote if available, for straight quotes in verbatim environments
+\IfFileExists{upquote.sty}{\usepackage{upquote}}{}
+% use microtype if available
+\IfFileExists{microtype.sty}{%
+\usepackage{microtype}
+\UseMicrotypeSet[protrusion]{basicmath} % disable protrusion for tt fonts
+}{}
+\usepackage[margin=1in]{geometry}
+\usepackage{hyperref}
+\hypersetup{unicode=true,
+            pdftitle={Drosophila Traumatic Brain Injury},
+            pdfauthor={Anji Trujillo - Professor Coon},
+            pdfborder={0 0 0},
+            breaklinks=true}
+\urlstyle{same}  % don't use monospace font for urls
+\usepackage{color}
+\usepackage{fancyvrb}
+\newcommand{\VerbBar}{|}
+\newcommand{\VERB}{\Verb[commandchars=\\\{\}]}
+\DefineVerbatimEnvironment{Highlighting}{Verbatim}{commandchars=\\\{\}}
+% Add ',fontsize=\small' for more characters per line
+\usepackage{framed}
+\definecolor{shadecolor}{RGB}{248,248,248}
+\newenvironment{Shaded}{\begin{snugshade}}{\end{snugshade}}
+\newcommand{\KeywordTok}[1]{\textcolor[rgb]{0.13,0.29,0.53}{\textbf{#1}}}
+\newcommand{\DataTypeTok}[1]{\textcolor[rgb]{0.13,0.29,0.53}{#1}}
+\newcommand{\DecValTok}[1]{\textcolor[rgb]{0.00,0.00,0.81}{#1}}
+\newcommand{\BaseNTok}[1]{\textcolor[rgb]{0.00,0.00,0.81}{#1}}
+\newcommand{\FloatTok}[1]{\textcolor[rgb]{0.00,0.00,0.81}{#1}}
+\newcommand{\ConstantTok}[1]{\textcolor[rgb]{0.00,0.00,0.00}{#1}}
+\newcommand{\CharTok}[1]{\textcolor[rgb]{0.31,0.60,0.02}{#1}}
+\newcommand{\SpecialCharTok}[1]{\textcolor[rgb]{0.00,0.00,0.00}{#1}}
+\newcommand{\StringTok}[1]{\textcolor[rgb]{0.31,0.60,0.02}{#1}}
+\newcommand{\VerbatimStringTok}[1]{\textcolor[rgb]{0.31,0.60,0.02}{#1}}
+\newcommand{\SpecialStringTok}[1]{\textcolor[rgb]{0.31,0.60,0.02}{#1}}
+\newcommand{\ImportTok}[1]{#1}
+\newcommand{\CommentTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textit{#1}}}
+\newcommand{\DocumentationTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textbf{\textit{#1}}}}
+\newcommand{\AnnotationTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textbf{\textit{#1}}}}
+\newcommand{\CommentVarTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textbf{\textit{#1}}}}
+\newcommand{\OtherTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{#1}}
+\newcommand{\FunctionTok}[1]{\textcolor[rgb]{0.00,0.00,0.00}{#1}}
+\newcommand{\VariableTok}[1]{\textcolor[rgb]{0.00,0.00,0.00}{#1}}
+\newcommand{\ControlFlowTok}[1]{\textcolor[rgb]{0.13,0.29,0.53}{\textbf{#1}}}
+\newcommand{\OperatorTok}[1]{\textcolor[rgb]{0.81,0.36,0.00}{\textbf{#1}}}
+\newcommand{\BuiltInTok}[1]{#1}
+\newcommand{\ExtensionTok}[1]{#1}
+\newcommand{\PreprocessorTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textit{#1}}}
+\newcommand{\AttributeTok}[1]{\textcolor[rgb]{0.77,0.63,0.00}{#1}}
+\newcommand{\RegionMarkerTok}[1]{#1}
+\newcommand{\InformationTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textbf{\textit{#1}}}}
+\newcommand{\WarningTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textbf{\textit{#1}}}}
+\newcommand{\AlertTok}[1]{\textcolor[rgb]{0.94,0.16,0.16}{#1}}
+\newcommand{\ErrorTok}[1]{\textcolor[rgb]{0.64,0.00,0.00}{\textbf{#1}}}
+\newcommand{\NormalTok}[1]{#1}
+\usepackage{graphicx,grffile}
+\makeatletter
+\def\maxwidth{\ifdim\Gin@nat@width>\linewidth\linewidth\else\Gin@nat@width\fi}
+\def\maxheight{\ifdim\Gin@nat@height>\textheight\textheight\else\Gin@nat@height\fi}
+\makeatother
+% Scale images if necessary, so that they will not overflow the page
+% margins by default, and it is still possible to overwrite the defaults
+% using explicit options in \includegraphics[width, height, ...]{}
+\setkeys{Gin}{width=\maxwidth,height=\maxheight,keepaspectratio}
+\IfFileExists{parskip.sty}{%
+\usepackage{parskip}
+}{% else
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{6pt plus 2pt minus 1pt}
+}
+\setlength{\emergencystretch}{3em}  % prevent overfull lines
+\providecommand{\tightlist}{%
+  \setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
+\setcounter{secnumdepth}{0}
+% Redefines (sub)paragraphs to behave more like sections
+\ifx\paragraph\undefined\else
+\let\oldparagraph\paragraph
+\renewcommand{\paragraph}[1]{\oldparagraph{#1}\mbox{}}
+\fi
+\ifx\subparagraph\undefined\else
+\let\oldsubparagraph\subparagraph
+\renewcommand{\subparagraph}[1]{\oldsubparagraph{#1}\mbox{}}
+\fi
+
+%%% Use protect on footnotes to avoid problems with footnotes in titles
+\let\rmarkdownfootnote\footnote%
+\def\footnote{\protect\rmarkdownfootnote}
+
+%%% Change title format to be more compact
+\usepackage{titling}
+
+% Create subtitle command for use in maketitle
+\newcommand{\subtitle}[1]{
+  \posttitle{
+    \begin{center}\large#1\end{center}
+    }
+}
+
+\setlength{\droptitle}{-2em}
+
+  \title{Drosophila Traumatic Brain Injury}
+    \pretitle{\vspace{\droptitle}\centering\huge}
+  \posttitle{\par}
+    \author{Anji Trujillo - Professor Coon}
+    \preauthor{\centering\large\emph}
+  \postauthor{\par}
+      \predate{\centering\large\emph}
+  \postdate{\par}
+    \date{December 8, 2018}
+
+
+\begin{document}
+\maketitle
+
+This is an R Markdown Document describing the proteomics data collected
+for the Drosophila Traumatic Brain Injury Project in collaboration with
+Professor Wassarman and Becky Steinbrech. The samples analyzed were
+derived from heads and hemolymph of Drosophilla melanogaster. For the
+head samples, there are 17 time points with a control and a traumatic
+brain injury (TBI) sample at each time point. The hemolymph sample is a
+shorter temporal study with control and traumatic brain injury samples
+for 4 time points.
+
+Proteomics data was collected September 22, 2018 and searched on October
+16, 2018. The initial analysis was performed December 9, 2018.
+
+The head and hemolymph data was searched separately with an appropriate
+fractionated sample to increase our protein group resolution.
+
+\subsection{Load data}\label{load-data}
+
+\begin{verbatim}
+## Number of protein groups in Hemolymph Data before any filtering of missing measurements: 9746
+\end{verbatim}
+
+\begin{verbatim}
+## Number of protein groups in Heads Data before any filtering of missing measurements: 10290
+\end{verbatim}
+
+The data analysis was performed using R. The following functions were
+written to manipulate the data:\\
+1. Remove Contaminants and Reverse Sequences\\
+2. Subset columns only with protein ID's, number identifier, and Gene
+Name\\
+3. 50\% data cut off, filters data to exclude proteins that have more
+than 50\% of measurements missing 4. Plotting Standard Deviation of
+Proteins 5. Fuzzy c-means preperation for data that has not been imputed
+yet\\
+6. Fuzzy c-means for data that has been previously imputed (in this case
+Bayesian Statistics from PCAMethods package)
+
+\subsection{Hemolymph Data}\label{hemolymph-data}
+
+The hemolymph data includes samples for the first 24 hours (1,4,8,24
+hrs) after traumatic brain injury has been implemented. The data
+analysis will:\\
+1. Clean proteomics data from MaxQuant search algorithm output\\
+2. Distribution of proteomic data before and after Bayesian
+imputation.\\
+3. PCA plots describing the variation in protein groups (scores) and the
+variation in the samples (loading) 4. Fuzzy Clustering and hierarchical
+plots\\
+5. Clustering is also performed on fold change data
+
+Number of missing measurement in Hemo dataset: 31443
+
+Filter and exclude protein groups that are missing over 50\% of
+measurements
+
+\begin{verbatim}
+## [1] "Number of protein groups that have over 50% missing measurements: 3151"
+## [1] "Protein groups that pass the 50% filteration: 6030"
+## [1] "Number of protein groups removed from dataset: 3151"
+\end{verbatim}
+
+Implement a bayesian pca imputation for data that is log2 transformed.
+The R package used is called
+\href{https://www.bioconductor.org/packages/devel/bioc/manuals/pcaMethods/man/pcaMethods.pdf}{pcaMethod}.
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\CommentTok{#PCA function utelizing method=bpca "bayesian"}
+\NormalTok{pc_hemolog2 <-}\StringTok{ }\KeywordTok{pca}\NormalTok{(hemo_50percent_log2, }\DataTypeTok{nPcs =} \DecValTok{3}\NormalTok{, }\DataTypeTok{method =} \StringTok{"bpca"}\NormalTok{) }\CommentTok{#pca method}
+\CommentTok{#extract imputed data set for hemo data}
+\NormalTok{imputed_hemo <-}\StringTok{ }\KeywordTok{completeObs}\NormalTok{(pc_hemolog2)}
+
+\KeywordTok{write.csv}\NormalTok{(imputed_hemo, }\StringTok{"E:/Projects/Proteomics/DorsophilaHead_Experiment/Imputed_hemo_log2.csv"}\NormalTok{)}
+\end{Highlighting}
+\end{Shaded}
+
+The distribution of the data bfore and after Bayesian imputation,
+plotted below.
+\includegraphics{Markdown_FuzzyClustering_Drosophila_20181126_files/figure-latex/density_hemo-1.pdf}
+
+\includegraphics{Markdown_FuzzyClustering_Drosophila_20181126_files/figure-latex/density_imputed_hemo-1.pdf}
+
+A global view of the data can visualized by PCA analysis. Imputed data
+is used from here on forward\\
+* The first PCA is a plot where each dot represents a protein (6,030
+proteins), the text denote which sample the protein group derives from,
+and the color indicates either control or TBI sample type.\\
+* In the second PCA plot the loadings describe the variance in each of
+the hemolymph samples determined by protein group. Each dot is a
+hymolymph sample and the color indicates either control or TBI sample
+type.\\
+\includegraphics{Markdown_FuzzyClustering_Drosophila_20181126_files/figure-latex/pca_plot-1.pdf}
+\includegraphics{Markdown_FuzzyClustering_Drosophila_20181126_files/figure-latex/pca_plot-2.pdf}
+
+\subsection{Hemo mFuzz Soft
+Clustering}\label{hemo-mfuzz-soft-clustering}
+
+Clustering will be implemnted on the proteomics data set that that has
+been organized such that control samples are the first and TBI samples
+are following.
+
+Prior to fuzzy clustering the variation for each protein plotted.
+
+\begin{verbatim}
+## 96 Proteins have a standard deviation greater than  0.1 .
+\end{verbatim}
+
+\includegraphics{Markdown_FuzzyClustering_Drosophila_20181126_files/figure-latex/mfuzz_bayesian_imputed-1.pdf}
+
+Soft clustering is implemented in the function mfuzz using a fuzzy
+c-means algorithm from
+\href{https://cran.r-project.org/web/packages/e1071/e1071.pdf}{e1071}
+package.
+
+Fuzzy clustering is one many types of clustering algoriths to choose
+from e.g.~K-means, hierarchical, bayesian, etc. I will show fuzzy
+clustering along with hierarchical clustering to visualize the protein
+trends we see for through out the timepoint. The clustering will be
+performed first on data set that includes both the control and TBI
+samples and then performed on the fold change data relative to control.
+
+To begin th we must first optimize the parameters for fuzzy clustering
+we must calculate the fuzzier value as well as the number of clusters to
+divide the data into. The fuzzier ``m'' and the number of clusters ``c''
+must be chosen in advanced. This fuzzy type of clustering is
+advantageous over hard cluster (e.g.~k-means) which commonly detects
+clusters of random data.
+
+The function mestimate
+
+\begin{verbatim}
+## [1] "fuzzier m = 1.4410339130003"
+\end{verbatim}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\CommentTok{# Find the error associated with number of cluster 2-15}
+\ControlFlowTok{for}\NormalTok{(i }\ControlFlowTok{in} \DecValTok{2}\OperatorTok{:}\DecValTok{15}\NormalTok{)\{}
+\NormalTok{  c1 <-}\StringTok{ }\KeywordTok{mfuzz}\NormalTok{(y, }\DataTypeTok{c=}\NormalTok{i, }\DataTypeTok{m=}\NormalTok{m1)}
+\NormalTok{  error <-}\StringTok{ }\KeywordTok{rbind}\NormalTok{(error, }\KeywordTok{c}\NormalTok{(i,c1}\OperatorTok{$}\NormalTok{withinerror))}
+\NormalTok{\}}
+\end{Highlighting}
+\end{Shaded}
+
+Look at the error calculated for each of the clusters.
+\includegraphics{Markdown_FuzzyClustering_Drosophila_20181126_files/figure-latex/Error_plot-1.pdf}
+
+Fuzzy clusters are plotted for 6 clusters.\\
+\emph{Note first 4 samples are Controls and next set of 4 are TBI
+samples\\
+}Note a seed has been set to keep clusters consistent.\\
+\includegraphics{Markdown_FuzzyClustering_Drosophila_20181126_files/figure-latex/numberOfClusters_beforeMembership-1.pdf}
+
+Filter out proteins from clusters with a membership score of greater
+than 70\%. Accounting for the majority of the temporal trend.
+\includegraphics{Markdown_FuzzyClustering_Drosophila_20181126_files/figure-latex/numberOfClusters_70percentMembership-1.pdf}
+
+How many proteins have a membership score greater than 70\%, count TRUE.
+
+\begin{verbatim}
+## 
+## FALSE  TRUE 
+##  4111  1919
+\end{verbatim}
+
+Heat map of hemo samples that have a membership value greater than 70\%.
+Global view of hemo samples.
+\includegraphics{Markdown_FuzzyClustering_Drosophila_20181126_files/figure-latex/heatmap_Highmembership-1.pdf}
+
+\subsection{Hemo mFuzz Soft Clustering - fold
+change}\label{hemo-mfuzz-soft-clustering---fold-change}
+
+Fuzzy clustering is performed on fold change data set. The fold change
+was calculated relative to controls. We will look at clustering of
+proteins that have a fold change greater than 1.2. There are fold
+changes in the hemolymph data that are greater than 8, and these
+proteins with extreme fold changes must be looked at in depth. However
+to reduce their bias on clustering, I have implemented a binning
+strategy that takes a look at the data set between logfold -2 and 2,
+compressing the larger fold changes down to fold change of 2.1. This way
+we can see how the protein groups bin at a more granular level.
+
+I have added fuzzy clustering at the end of this section, however I dont
+believe fuzzy clustering will be the best strategy for visualizing the
+clusters. There are hierarchical clusters and a clusplot at the
+beginning of this section, to help determine the number of clusters the
+data partitions into.
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{imputed_hemo_fold <-}\StringTok{ }\NormalTok{imputed_hemo_reorder[,}\DecValTok{5}\OperatorTok{:}\DecValTok{8}\NormalTok{]}\OperatorTok{-}\NormalTok{imputed_hemo_reorder[,}\DecValTok{1}\OperatorTok{:}\DecValTok{4}\NormalTok{]}
+
+\KeywordTok{write.csv}\NormalTok{(imputed_hemo_fold, }\StringTok{"E:/Projects/Proteomics/DorsophilaHead_Experiment/Imputed_hemo_foldchange.csv"}\NormalTok{)}
+
+\CommentTok{# subset features with fold change greater than 1.2 to cluster}
+\NormalTok{important_features_hemo_foldchange <-}\StringTok{ }\NormalTok{imputed_hemo_fold[}\KeywordTok{rowSums}\NormalTok{(}\KeywordTok{abs}\NormalTok{(imputed_hemo_fold)}\OperatorTok{>}\FloatTok{1.2}\NormalTok{)}\OperatorTok{>}\DecValTok{0}\NormalTok{,]}
+
+\CommentTok{# bin protein groups so that we describe the changes within fold changes of -2 and 2}
+\NormalTok{important_features_foldchange_compress <-}\StringTok{ }\NormalTok{important_features_hemo_foldchange}
+\NormalTok{important_features_foldchange_compress[important_features_foldchange_compress }\OperatorTok{<}\StringTok{ }\OperatorTok{-}\DecValTok{2}\NormalTok{] =}\StringTok{ }\OperatorTok{-}\FloatTok{2.1}
+\NormalTok{important_features_foldchange_compress[important_features_foldchange_compress }\OperatorTok{>}\StringTok{ }\DecValTok{2}\NormalTok{] =}\StringTok{ }\FloatTok{2.1}
+
+\CommentTok{# Protein groups with fold change greater than 1.2}
+\KeywordTok{table}\NormalTok{(}\KeywordTok{rowSums}\NormalTok{(}\KeywordTok{abs}\NormalTok{(imputed_hemo_fold)}\OperatorTok{>}\FloatTok{1.2}\NormalTok{)}\OperatorTok{>}\DecValTok{0}\NormalTok{)}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+## 
+## FALSE  TRUE 
+##  4522  1508
+\end{verbatim}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\CommentTok{# Protein groups with fold change greater than 2}
+\KeywordTok{table}\NormalTok{(}\KeywordTok{rowSums}\NormalTok{(}\KeywordTok{abs}\NormalTok{(imputed_hemo_fold)}\OperatorTok{>}\DecValTok{2}\NormalTok{)}\OperatorTok{>}\DecValTok{0}\NormalTok{)}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+## 
+## FALSE  TRUE 
+##  5661   369
+\end{verbatim}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\CommentTok{# Protein groups with fold change greater than 4}
+\KeywordTok{table}\NormalTok{(}\KeywordTok{rowSums}\NormalTok{(}\KeywordTok{abs}\NormalTok{(imputed_hemo_fold)}\OperatorTok{>}\DecValTok{4}\NormalTok{)}\OperatorTok{>}\DecValTok{0}\NormalTok{)}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+## 
+## FALSE  TRUE 
+##  5984    46
+\end{verbatim}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\CommentTok{# Protein groups with fold change greater than 8}
+\KeywordTok{table}\NormalTok{(}\KeywordTok{rowSums}\NormalTok{(}\KeywordTok{abs}\NormalTok{(imputed_hemo_fold)}\OperatorTok{>}\DecValTok{8}\NormalTok{)}\OperatorTok{>}\DecValTok{0}\NormalTok{)}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+## 
+## FALSE  TRUE 
+##  6027     3
+\end{verbatim}
+
+\includegraphics{Markdown_FuzzyClustering_Drosophila_20181126_files/figure-latex/heatmap_important_features_1.2-1.pdf}
+\includegraphics{Markdown_FuzzyClustering_Drosophila_20181126_files/figure-latex/heatmap_important_features_1.2-2.pdf}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{fold_hclust <-}\StringTok{ }\KeywordTok{hclust}\NormalTok{(}\KeywordTok{dist}\NormalTok{(important_features_foldchange_compress, }\DataTypeTok{method =} \StringTok{"euclidean"}\NormalTok{))}
+\NormalTok{clusters <-}\StringTok{ }\KeywordTok{cutree}\NormalTok{(fold_hclust, }\DataTypeTok{k =} \DecValTok{6}\NormalTok{) }\CommentTok{#k = 20)}
+
+\KeywordTok{clusplot}\NormalTok{(important_features_foldchange_compress, clusters, }\DataTypeTok{lines =} \DecValTok{0}\NormalTok{)}
+\end{Highlighting}
+\end{Shaded}
+
+\includegraphics{Markdown_FuzzyClustering_Drosophila_20181126_files/figure-latex/mfuzz_clustering-1.pdf}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\KeywordTok{plot}\NormalTok{(fold_hclust, }\DataTypeTok{label=} \OtherTok{FALSE}\NormalTok{)}
+\KeywordTok{rect.hclust}\NormalTok{(fold_hclust, }\DataTypeTok{k=}\DecValTok{6}\NormalTok{, }\DataTypeTok{border =} \StringTok{"red"}\NormalTok{)}
+\end{Highlighting}
+\end{Shaded}
+
+\includegraphics{Markdown_FuzzyClustering_Drosophila_20181126_files/figure-latex/mfuzz_clustering-2.pdf}
+
+\section{Fold Change Hemo Data Fuzzy
+Clustering}\label{fold-change-hemo-data-fuzzy-clustering}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\CommentTok{#start with the re-ordered hemo data}
+\NormalTok{z =}\StringTok{ }\NormalTok{important_features_foldchange_compress }\CommentTok{# change accordingly to use in mfuzzy setup funtions}
+
+\NormalTok{exprValues.s_bayesian <-}\StringTok{ }\KeywordTok{fuzzyprep_usepreviousImputation_foldchange}\NormalTok{(z)}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+## 1 Proteins have a standard deviation greater than  0.1 .
+\end{verbatim}
+
+\includegraphics{Markdown_FuzzyClustering_Drosophila_20181126_files/figure-latex/mfuzz_bayesian_imputed_foldchange-1.pdf}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{error <-}\StringTok{ }\OtherTok{NA} \CommentTok{#set error to NA}
+
+\NormalTok{y =}\StringTok{ }\NormalTok{exprValues.s_bayesian }\CommentTok{#change according to version of data to perform fuzzy clustering}
+\end{Highlighting}
+\end{Shaded}
+
+The function mestimate
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{m1 <-}\StringTok{ }\KeywordTok{mestimate}\NormalTok{(y) }
+
+\CommentTok{# }
+\ControlFlowTok{for}\NormalTok{(i }\ControlFlowTok{in} \DecValTok{2}\OperatorTok{:}\DecValTok{15}\NormalTok{)\{}
+\NormalTok{  c1 <-}\StringTok{ }\KeywordTok{mfuzz}\NormalTok{(y, }\DataTypeTok{c=}\NormalTok{i, }\DataTypeTok{m=}\NormalTok{m1)}
+\NormalTok{  error <-}\StringTok{ }\KeywordTok{rbind}\NormalTok{(error, }\KeywordTok{c}\NormalTok{(i,c1}\OperatorTok{$}\NormalTok{withinerror))}
+\NormalTok{\}}
+\end{Highlighting}
+\end{Shaded}
+
+Plot error calculated from imputed hemo data set that has been
+reordered.
+\includegraphics{Markdown_FuzzyClustering_Drosophila_20181126_files/figure-latex/error_hemo_foldChange-1.pdf}
+
+\includegraphics{Markdown_FuzzyClustering_Drosophila_20181126_files/figure-latex/numberOfClusters_foldchange-1.pdf}
+\includegraphics{Markdown_FuzzyClustering_Drosophila_20181126_files/figure-latex/numberOfClusters_foldchange-2.pdf}
+
+\subsection{Head Data}\label{head-data}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{proteinGroups_dros_heads <-}\StringTok{ }\KeywordTok{RemoveContaminants}\NormalTok{(proteinGroups_dros_heads)}
+\KeywordTok{print}\NormalTok{(}\KeywordTok{dim}\NormalTok{(proteinGroups_dros_heads))}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+## [1] 9365  335
+\end{verbatim}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{proteinGroups_dros_heads <-}\StringTok{ }\KeywordTok{subsetLFQ}\NormalTok{(proteinGroups_dros_heads) }
+\KeywordTok{print}\NormalTok{(}\KeywordTok{dim}\NormalTok{(proteinGroups_dros_heads))}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+## [1] 9365   38
+\end{verbatim}
+
+Number of missing measurement in Head dataset: 83521
+
+Filter and exclude protein groups that are missing over 50\% of
+measurements
+
+\begin{verbatim}
+## [1] "Number of protein groups that have over 50% missing measurements: 2190"
+## [1] "Protein groups that pass the 50% filteration: 7175"
+## [1] "Number of protein groups removed from dataset: 2190"
+\end{verbatim}
+
+Implement a bayesian pca imputation for data that is log2 transformed.
+The R package used is called
+\href{https://www.bioconductor.org/packages/devel/bioc/manuals/pcaMethods/man/pcaMethods.pdf}{pcaMethod}.
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\CommentTok{#subset matrix containing only samples that have been filtered 50% threshold}
+\NormalTok{head_50percent <-}\StringTok{ }\KeywordTok{as.matrix}\NormalTok{(filtered_dros_head_50percent[,}\KeywordTok{c}\NormalTok{(}\DecValTok{5}\OperatorTok{:}\DecValTok{38}\NormalTok{)])}
+\CommentTok{#log2 transform}
+\NormalTok{head_50percent_log2 <-}\StringTok{ }\KeywordTok{log2}\NormalTok{(head_50percent)}
+\CommentTok{#set row names to match protein group identifer number}
+\KeywordTok{rownames}\NormalTok{(head_50percent_log2) <-}\StringTok{ }\NormalTok{filtered_dros_head_50percent}\OperatorTok{$}\NormalTok{id}
+
+\KeywordTok{colnames}\NormalTok{(head_50percent_log2) <-}\StringTok{ }\KeywordTok{as.numeric}\NormalTok{(}\KeywordTok{gsub}\NormalTok{(}\StringTok{".*_"}\NormalTok{,}\StringTok{""}\NormalTok{,}\KeywordTok{colnames}\NormalTok{(head_50percent_log2)))}
+
+\NormalTok{col_levels <-}\StringTok{ }\KeywordTok{levels}\NormalTok{(}\KeywordTok{colnames}\NormalTok{(head_50percent_log2)) <-}\StringTok{ }\KeywordTok{seq}\NormalTok{(}\DecValTok{1}\OperatorTok{:}\DecValTok{34}\NormalTok{)}
+\KeywordTok{colnames}\NormalTok{(head_50percent_log2) <-}\StringTok{ }\KeywordTok{order}\NormalTok{(}\KeywordTok{colnames}\NormalTok{(head_50percent_log2))}
+
+\NormalTok{col_names <-}\StringTok{ }\KeywordTok{names}\NormalTok{(}\KeywordTok{colnames}\NormalTok{(head_50percent_log2)) <-}\StringTok{ }\KeywordTok{order}\NormalTok{(}\KeywordTok{colnames}\NormalTok{(head_50percent_log2))}
+
+\NormalTok{head_meta <-}\StringTok{ }\KeywordTok{data.frame}\NormalTok{(}\DataTypeTok{HeadTimePoints =} \KeywordTok{order}\NormalTok{(col_levels),}\DataTypeTok{Sample_Type=}\KeywordTok{rep}\NormalTok{(}\KeywordTok{c}\NormalTok{(}\StringTok{"Control"}\NormalTok{,}\StringTok{"TBI"}\NormalTok{),}\DecValTok{17}\NormalTok{))}
+
+\NormalTok{head_50percent_log2 <-}\StringTok{ }\NormalTok{head_50percent_log2[,}\KeywordTok{names}\NormalTok{(}\KeywordTok{colnames}\NormalTok{(head_50percent_log2))]}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\CommentTok{#PCA function utelizing method=bpca "bayesian"}
+\NormalTok{pc_headlog2 <-}\StringTok{ }\KeywordTok{pca}\NormalTok{(head_50percent_log2, }\DataTypeTok{nPcs =} \DecValTok{3}\NormalTok{, }\DataTypeTok{method =} \StringTok{"bpca"}\NormalTok{) }\CommentTok{#pca method}
+\CommentTok{#extract imputed data set for hemo data}
+\NormalTok{imputed_head <-}\StringTok{ }\KeywordTok{completeObs}\NormalTok{(pc_headlog2)}
+
+\KeywordTok{write.csv}\NormalTok{(imputed_head, }\StringTok{"E:/Projects/Proteomics/DorsophilaHead_Experiment/Imputed_head.csv"}\NormalTok{)}
+\end{Highlighting}
+\end{Shaded}
+
+\includegraphics{Markdown_FuzzyClustering_Drosophila_20181126_files/figure-latex/pca_plot_head-1.pdf}
+\includegraphics{Markdown_FuzzyClustering_Drosophila_20181126_files/figure-latex/pca_plot_head-2.pdf}
+
+The distribution of the data is plotted below before and after
+imputation
+\includegraphics{Markdown_FuzzyClustering_Drosophila_20181126_files/figure-latex/density_head-1.pdf}
+
+\includegraphics{Markdown_FuzzyClustering_Drosophila_20181126_files/figure-latex/density_imputed_head-1.pdf}
+
+\subsection{Head mFuzz Soft
+Clustering}\label{head-mfuzz-soft-clustering}
+
+Clustering will be implemnted on data set that contains control samples
+first 17 and TBI samples remaining 17.
+
+First we will look at the variation of the data by calculating the
+standard deviation of each protein.
+
+\begin{verbatim}
+## 105 Proteins have a standard deviation greater than  0.1 .
+\end{verbatim}
+
+\includegraphics{Markdown_FuzzyClustering_Drosophila_20181126_files/figure-latex/mfuzz_bayesian_headimputed-1.pdf}
+
+Soft clustering is implemented in the function mfuzz using a fuzzy
+c-means algorithm from e1071 package.
+
+To optimize the parameters for fuzzy clustering we must calculate the
+fuzzier value as well as the number of clusters to divide the data into.
+The fuzzier ``m'' and the number of clusters ``c'' must be chosen in
+advanced. For ``m'' we choose a value that prevents clustering of random
+data. This fuzzy type of clustering is advantageous over hard cluster
+(e.g.~k-means) which commonly detects clusters of random data.
+
+The function mestimate
+
+\begin{verbatim}
+## [1] "fuzzier m = 1.065266572006"
+\end{verbatim}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\CommentTok{# Find the error associated with number of cluster 2-15}
+\ControlFlowTok{for}\NormalTok{(i }\ControlFlowTok{in} \DecValTok{2}\OperatorTok{:}\DecValTok{20}\NormalTok{)\{}
+\NormalTok{  c1 <-}\StringTok{ }\KeywordTok{mfuzz}\NormalTok{(y, }\DataTypeTok{c=}\NormalTok{i, }\DataTypeTok{m=}\NormalTok{m1)}
+\NormalTok{  error <-}\StringTok{ }\KeywordTok{rbind}\NormalTok{(error, }\KeywordTok{c}\NormalTok{(i,c1}\OperatorTok{$}\NormalTok{withinerror))}
+\NormalTok{\}}
+\end{Highlighting}
+\end{Shaded}
+
+Plot error calculated from the number of clusters used.
+\includegraphics{Markdown_FuzzyClustering_Drosophila_20181126_files/figure-latex/Error_plot_head-1.pdf}
+
+Fuzzy clusters are plotted for 6 clusters.\\
+\emph{Note first 17 samples are Controls and next set of 17 are TBI
+samples\\
+}Note a seed has been set to keep clusters consistent.\\
+\includegraphics{Markdown_FuzzyClustering_Drosophila_20181126_files/figure-latex/numberOfClusters_beforeMembership_head-1.pdf}
+\includegraphics{Markdown_FuzzyClustering_Drosophila_20181126_files/figure-latex/numberOfClusters_beforeMembership_head-2.pdf}
+
+How many proteins have a membership score greater than 70\%, count TRUE.
+
+\begin{verbatim}
+## 
+## FALSE  TRUE 
+##  2023  5152
+\end{verbatim}
+
+Heat map of head samples that have a membership value greater than 70\%.
+Global view of head samples.
+\includegraphics{Markdown_FuzzyClustering_Drosophila_20181126_files/figure-latex/heatmap_Highmembership_head-1.pdf}
+
+\subsection{Head mFuzz Soft Clustering - fold
+change}\label{head-mfuzz-soft-clustering---fold-change}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{imputed_head_fold <-}\StringTok{ }\NormalTok{imputed_head_reorder[,}\DecValTok{18}\OperatorTok{:}\DecValTok{34}\NormalTok{]}\OperatorTok{-}\NormalTok{imputed_head_reorder[,}\DecValTok{1}\OperatorTok{:}\DecValTok{17}\NormalTok{]}
+
+\KeywordTok{write.csv}\NormalTok{(imputed_head_fold, }\StringTok{"E:/Projects/Proteomics/DorsophilaHead_Experiment/Imputed_head_foldchange.csv"}\NormalTok{)}
+
+\CommentTok{# subset features with fold change greater than 1.2 to cluster}
+\NormalTok{important_features_head_foldchange <-}\StringTok{ }\NormalTok{imputed_head_fold[}\KeywordTok{rowSums}\NormalTok{(}\KeywordTok{abs}\NormalTok{(imputed_head_fold)}\OperatorTok{>}\FloatTok{1.2}\NormalTok{)}\OperatorTok{>}\DecValTok{0}\NormalTok{,]}
+
+
+\KeywordTok{table}\NormalTok{(}\KeywordTok{rowSums}\NormalTok{(}\KeywordTok{abs}\NormalTok{(imputed_head_fold)}\OperatorTok{>}\FloatTok{1.2}\NormalTok{)}\OperatorTok{>}\DecValTok{0}\NormalTok{)}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+## 
+## FALSE  TRUE 
+##  4807  2368
+\end{verbatim}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\KeywordTok{table}\NormalTok{(}\KeywordTok{rowSums}\NormalTok{(}\KeywordTok{abs}\NormalTok{(imputed_head_fold)}\OperatorTok{>}\DecValTok{2}\NormalTok{)}\OperatorTok{>}\DecValTok{0}\NormalTok{)}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+## 
+## FALSE  TRUE 
+##  6196   979
+\end{verbatim}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\KeywordTok{table}\NormalTok{(}\KeywordTok{rowSums}\NormalTok{(}\KeywordTok{abs}\NormalTok{(imputed_head_fold)}\OperatorTok{>}\DecValTok{4}\NormalTok{)}\OperatorTok{>}\DecValTok{0}\NormalTok{)}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+## 
+## FALSE  TRUE 
+##  6958   217
+\end{verbatim}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\KeywordTok{table}\NormalTok{(}\KeywordTok{rowSums}\NormalTok{(}\KeywordTok{abs}\NormalTok{(imputed_head_fold)}\OperatorTok{>}\DecValTok{8}\NormalTok{)}\OperatorTok{>}\DecValTok{0}\NormalTok{)}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+## 
+## FALSE  TRUE 
+##  7151    24
+\end{verbatim}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\CommentTok{# bin protein groups so that we describe the changes within fold changes of -2 and 2}
+\NormalTok{important_features_foldchange_compress <-}\StringTok{ }\NormalTok{important_features_head_foldchange}
+\NormalTok{important_features_foldchange_compress[important_features_foldchange_compress }\OperatorTok{<}\StringTok{ }\OperatorTok{-}\DecValTok{2}\NormalTok{] =}\StringTok{ }\OperatorTok{-}\FloatTok{2.1}
+\NormalTok{important_features_foldchange_compress[important_features_foldchange_compress }\OperatorTok{>}\StringTok{ }\DecValTok{2}\NormalTok{] =}\StringTok{ }\FloatTok{2.1}
+\end{Highlighting}
+\end{Shaded}
+
+\includegraphics{Markdown_FuzzyClustering_Drosophila_20181126_files/figure-latex/heatmap_important_features_1.2_head-1.pdf}
+\includegraphics{Markdown_FuzzyClustering_Drosophila_20181126_files/figure-latex/heatmap_important_features_1.2_head-2.pdf}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{fold_hclust <-}\StringTok{ }\KeywordTok{hclust}\NormalTok{(}\KeywordTok{dist}\NormalTok{(important_features_foldchange_compress, }\DataTypeTok{method =} \StringTok{"euclidean"}\NormalTok{))}
+\NormalTok{clusters <-}\StringTok{ }\KeywordTok{cutree}\NormalTok{(fold_hclust, }\DataTypeTok{k =} \DecValTok{6}\NormalTok{) }\CommentTok{#k = 20)}
+
+\KeywordTok{clusplot}\NormalTok{(important_features_foldchange_compress, clusters, }\DataTypeTok{lines =} \DecValTok{0}\NormalTok{)}
+\end{Highlighting}
+\end{Shaded}
+
+\includegraphics{Markdown_FuzzyClustering_Drosophila_20181126_files/figure-latex/mfuzz_clustering_head-1.pdf}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\KeywordTok{plot}\NormalTok{(fold_hclust, }\DataTypeTok{label=} \OtherTok{FALSE}\NormalTok{)}
+\KeywordTok{rect.hclust}\NormalTok{(fold_hclust, }\DataTypeTok{k=}\DecValTok{6}\NormalTok{, }\DataTypeTok{border =} \StringTok{"red"}\NormalTok{)}
+\end{Highlighting}
+\end{Shaded}
+
+\includegraphics{Markdown_FuzzyClustering_Drosophila_20181126_files/figure-latex/mfuzz_clustering_head-2.pdf}
+
+\section{Fold Change Head Data Fuzzy
+Clustering}\label{fold-change-head-data-fuzzy-clustering}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\CommentTok{#start with the re-ordered hemo data}
+\NormalTok{z =}\StringTok{ }\NormalTok{important_features_foldchange_compress }\CommentTok{# change accordingly to use in mfuzzy setup funtions}
+
+\NormalTok{exprValues.s_bayesian <-}\StringTok{ }\KeywordTok{fuzzyprep_usepreviousImputation_foldchange}\NormalTok{(z)}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+## 0 Proteins have a standard deviation greater than  0.1 .
+\end{verbatim}
+
+\includegraphics{Markdown_FuzzyClustering_Drosophila_20181126_files/figure-latex/mfuzz_bayesian_imputed_foldchange_head-1.pdf}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{error <-}\StringTok{ }\OtherTok{NA} \CommentTok{#set error to NA}
+
+\NormalTok{y =}\StringTok{ }\NormalTok{exprValues.s_bayesian }\CommentTok{#change according to version of data to perform fuzzy clustering}
+\end{Highlighting}
+\end{Shaded}
+
+The function mestimate
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{m1 <-}\StringTok{ }\KeywordTok{mestimate}\NormalTok{(y) }
+
+\CommentTok{# }
+\ControlFlowTok{for}\NormalTok{(i }\ControlFlowTok{in} \DecValTok{2}\OperatorTok{:}\DecValTok{20}\NormalTok{)\{}
+\NormalTok{  c1 <-}\StringTok{ }\KeywordTok{mfuzz}\NormalTok{(y, }\DataTypeTok{c=}\NormalTok{i, }\DataTypeTok{m=}\NormalTok{m1)}
+\NormalTok{  error <-}\StringTok{ }\KeywordTok{rbind}\NormalTok{(error, }\KeywordTok{c}\NormalTok{(i,c1}\OperatorTok{$}\NormalTok{withinerror))}
+\NormalTok{\}}
+\end{Highlighting}
+\end{Shaded}
+
+Plot error calculated from imputed hemo data set that has been
+reordered.
+\includegraphics{Markdown_FuzzyClustering_Drosophila_20181126_files/figure-latex/error_head_foldChange-1.pdf}
+
+\includegraphics{Markdown_FuzzyClustering_Drosophila_20181126_files/figure-latex/numberOfClusters_foldchange_head-1.pdf}
+\includegraphics{Markdown_FuzzyClustering_Drosophila_20181126_files/figure-latex/numberOfClusters_foldchange_head-2.pdf}
+\includegraphics{Markdown_FuzzyClustering_Drosophila_20181126_files/figure-latex/numberOfClusters_foldchange_head-3.pdf}
+\includegraphics{Markdown_FuzzyClustering_Drosophila_20181126_files/figure-latex/numberOfClusters_foldchange_head-4.pdf}
+
+Note that the \texttt{echo\ =\ FALSE} parameter was added to the code
+chunk to prevent printing of the R code that generated the plot.
+
+
+\end{document}
