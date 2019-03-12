@@ -315,8 +315,6 @@ plot(treatment_plsda$loadings[order(treatment_plsda$loadings[,1]),1])
 reorder_brains <- LFQheads_LOG2[,c(odd, even)]
 times <- c("0min", "30min", "1hr", "2hr", "4hr", "6hr", "8hr", "12hr", "16hr", "24hr", "48hr", "72hr", "7days", "14days", "21days", "28days", "35days")
 
-
-
 par(mar = c(4,6,4,1), las  = 1, mgp = c(2.5,0.5,0), tcl =  -0.3, ps = 12)
 boxplot(reorder_brains, notch = TRUE)
 
@@ -516,11 +514,12 @@ proteinOfInterest <- function(y){
 }
 
 # Input is id of protein
-proteinOfInterest(3112)
+proteinOfInterest(n)
 
 ###### Time series plots ####
-# 3112 - Hsp
-n <- 3112 #LFQheads_complete[which(LFQheads_complete$id == n),]
+
+ranked_pls_loading1 <- as.numeric(sub(".*LOG2)","", 
+                                      names(rev(treatment_plsda$loadings[order(-abs(treatment_plsda$loadings[,1])),1][1:50]))))
 
 timeSeries_protein_plot <- function(n){
   even_timepoints <- LFQheads_LOG2[which(rownames(LFQheads_LOG2)==n),even]
@@ -561,14 +560,11 @@ timeSeries_protein_plot <- function(n){
   axis(1,evenTimes[11:17], labels = labels_days)
 }
 
-
+#plot the time series plot for individual proteins
+n <- 3272 #LFQheads_complete[which(LFQheads_complete$id == n),]
 timeSeries_protein_plot(n)
 
 #ks.test(LFQheads_LOG2[which(rownames(LFQheads_LOG2)==n),even[10:17]],LFQheads_LOG2[which(rownames(LFQheads_LOG2)==n), odd[10:17]])
-
-
-ranked_pls_loading1 <- as.numeric(sub(".*LOG2)","", 
-                                      names(rev(treatment_plsda$loadings[order(-abs(treatment_plsda$loadings[,1])),1][1:25]))))
 
 df <- data.frame(Protein.ID = as.numeric(), Anova.p.Samply_Type = as.numeric(), 
                  Anova.p.time = as.numeric(), Anova.p.Samply_Type.Time = as.numeric())
@@ -582,16 +578,9 @@ for(i in 1:length(ranked_pls_loading1)){
   df[i,] <- c(n,summary(aov_n)[[1]][["Pr(>F)"]])
 }
 
-intensity_protein <- LFQheads_LOG2[which(rownames(LFQheads_LOG2)==n),]
 
 
-Sample_Type <- head_meta$Sample_Type
-time_series <- head_meta$time
-
-
-
-anova_model <- lapply(paste)
-
+#individual anova calculations 
 anova1 <- aov(LFQheads_LOG2[which(rownames(LFQheads_LOG2)==4034),] ~  head_meta$Sample_Type * head_meta$time)
 summary(anova1)
 
@@ -602,7 +591,11 @@ summary(anova5606)
 anova2535 <- aov(LFQheads_LOG2[which(rownames(LFQheads_LOG2)==2535),] ~  head_meta$Sample_Type * head_meta$time)
 summary(anova2535)
 
+#look into K.S. test for best line of fits
+
 help("ks.test")
+
+
 # 4362 - Loopin-1
 LFQheads_complete[which(LFQheads_complete$id == 4362),]
 plot(LFQheads_LOG2[which(rownames(LFQheads_LOG2)==4362),even])
@@ -629,48 +622,7 @@ plot(LFQheads_LOG2[which(rownames(LFQheads_LOG2)==3270),even])
 x <- LFQheads_complete[which(LFQheads_complete$id == 1145),]
 plot(LFQheads_LOG2[which(rownames(LFQheads_LOG2)==1145),even])
 
-y=1145
-
-
-
-proteinOfInterest(6353)
-
-proteinOfInterest(5279)
-
-proteinOfInterest(3536)
-
-proteinOfInterest(3898)
-
-proteinOfInterest(8322)
-
-proteinOfInterest(7837)
-
-proteinOfInterest(9580)
-
-proteinOfInterest(3448)
-
-proteinOfInterest(6034)
-
-proteinOfInterest(9940)
-
-proteinOfInterest(4335)
-
-proteinOfInterest(3651)
-
-proteinOfInterest(1197)
-
-proteinOfInterest(9755)
-
-proteinOfInterest(3039)
-
-proteinOfInterest(4197)
-
-proteinOfInterest(3429)
-
-proteinOfInterest(1246)
-
-
-
+# Look for individual proteins by Gene.Name
 proteinGroups_dros_heads[which(proteinGroups_dros_heads$Gene.names == "Tau"),]
 
 
