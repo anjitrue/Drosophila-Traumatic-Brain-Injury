@@ -205,13 +205,13 @@ par(mar = c(4,6,4,1), las  = 1, mgp = c(2.5,0.5,0), tcl =  -0.3, ps = 12)
 plot(pca_complete_LFQheads$x, col= colors[(2:6)][as.factor(head_meta$day)], xlab = "PC1\n32.48", ylab ="PC2\n 10.27", pch=19, cex =2, main= "Principle Component Analysis", ylim = c(-50, 50), xlim = c(-50, 50))
 legend("topleft", col = colors[2:6], pch=19, bty = "n", legend =levels(as.factor(head_meta$day)))
 
- polygon(pts.array[, , 1], col = adjustcolor(colors[1], alpha = 0.25), border = NA)
+polygon(pts.array[, , 1], col = adjustcolor(colors[1], alpha = 0.25), border = NA)
 # 
- polygon(pts.array[, , 2], col = adjustcolor(colors[2], alpha = 0.25), border = NA)
+polygon(pts.array[, , 2], col = adjustcolor(colors[2], alpha = 0.25), border = NA)
 # 
- polygon(pts.array[, , 3], col = adjustcolor(colors[3], alpha = 0.25), border = NA)
+polygon(pts.array[, , 3], col = adjustcolor(colors[3], alpha = 0.25), border = NA)
 # 
- polygon(pts.array[, , 4], col = adjustcolor(sample.colors[4], alpha = 0.25), border = NA)
+polygon(pts.array[, , 4], col = adjustcolor(sample.colors[4], alpha = 0.25), border = NA)
 
 
 text(pca_complete_LFQheads$x[,1], pca_complete_LFQheads$x[,2], samples, pos =4, offset = 0.5, cex = 0.8)
@@ -504,44 +504,93 @@ fuzzyprep_usepreviousImputation_foldchange <- function(z)
 }
 
 ##### Finding proteins of interest #####
-# 3112 - Hsp 
-LFQheads_complete[which(LFQheads_complete$id == 3112),]
-Hsp22 <- LFQheads_complete[which(LFQheads_complete$id == 3112),]
+evenTimes <- head_meta[even,]$time
+labels_hours <- c("0","0.5","1","2","4","6","8","12","16","24")
+labels_days <- c("2","3","7","14","21","28","35")
 
-Hsp22 <- data.frame(LFQheads_LOG2[which(rownames(LFQheads_LOG2)==3112),])
-plot(LFQheads_LOG2[which(rownames(LFQheads_LOG2)==3112),even], type = "l")
-lines(LFQheads_LOG2[which(rownames(LFQheads_LOG2)==3112), odd], col = "red") 
+proteinOfInterest <- function(y){
+  print(paste("proteinID: ", LFQheads_complete[which(LFQheads_complete$id == y),1]))
+  print(paste("geneID: ", LFQheads_complete[which(LFQheads_complete$id == y),2]))
+  plot(LFQheads_LOG2[which(rownames(LFQheads_LOG2)==y),even], type = "l")
+  lines(LFQheads_LOG2[which(rownames(LFQheads_LOG2)==y), odd], col = "red") 
+}
 
-###### Time series plots
-LFQheads_complete[which(LFQheads_complete$id == n),]
-x <- head_meta[even,]$time
+# Input is id of protein
+proteinOfInterest(3112)
 
-n <- 2535
+###### Time series plots ####
+# 3112 - Hsp
+n <- 3112 #LFQheads_complete[which(LFQheads_complete$id == n),]
 
+timeSeries_protein_plot <- function(n){
+  even_timepoints <- LFQheads_LOG2[which(rownames(LFQheads_LOG2)==n),even]
+  odd_timepoints <- LFQheads_LOG2[which(rownames(LFQheads_LOG2)==n),odd]
   
-proteinOfInterest(n)
-#par(mfrow = c(1,2))
-#layout(matrix(c(1,1), 1, 2, byrow = TRUE), widths=c(2,1), heights=c(1,2))
-par(mar = c(4,6,4,1), las  = 1, mgp = c(2.5,0.5,0), tcl =  -0.3, ps = 12)
-plot(x[1:10], LFQheads_LOG2[which(rownames(LFQheads_LOG2)==n),even[1:10]],
-     ylim = c(min(LFQheads_LOG2[which(rownames(LFQheads_LOG2)==n),even[1:10]]),max(LFQheads_LOG2[which(rownames(LFQheads_LOG2)==n),even[1:10]])), xaxt = "n")
-lines(x[1:11],LFQheads_LOG2[which(rownames(LFQheads_LOG2)==n), odd][1:11], col = "red") 
-#axis(1, at = seq(0,1, by = 0.02), las = 2)
-axis(1,x[1:10], labels = x[1:10])
-plot(x[11:17], LFQheads_LOG2[which(rownames(LFQheads_LOG2)==n),even[11:17]], 
-     ylim = c(min(LFQheads_LOG2[which(rownames(LFQheads_LOG2)==n),even[1:10]]),32), xaxt = "n")
-lines(x[10:17],LFQheads_LOG2[which(rownames(LFQheads_LOG2)==n), odd][10:17], col = "red")
-axis(1,x[11:17], labels = x[11:17])
+  if(min(even_timepoints) < min(odd_timepoints)){
+    minimum_y_Intensity <- min(even_timepoints)
+  }else{
+    minimum_y_Intensity <- min(odd_timepoints)
+  }
+  
+  if(max(even_timepoints) > max(odd_timepoints)){
+    max_y_Intensity <- max(even_timepoints)
+  }else{
+    max_y_Intensity <- max(odd_timepoints)
+  }
+  
+  #par(mfrow = c(1,2))
+  #layout(matrix(c(1,1), 1, 2, byrow = TRUE), widths=c(2,1), heights=c(1,2))
+  par(mar = c(4,6,4,1), las  = 1, mgp = c(2.5,0.5,0), tcl =  -0.3, ps = 12)
+  #plot for hours
+  plot(evenTimes[1:10], even_timepoints[1:10],
+       ylim = c(minimum_y_Intensity,max_y_Intensity),
+       type = "b,c",
+       pch = 19,
+       lty = 2, 
+       xaxt = "n")
+  lines(evenTimes[1:11],odd_timepoints[1:11], col = "red") 
+  axis(1,evenTimes[1:10], labels = labels_hours)
+  #plot for days
+  plot(evenTimes[11:17], even_timepoints[11:17], 
+       ylim = c(minimum_y_Intensity,max_y_Intensity), 
+       type = "b,c",
+       pch = 19,
+       lty = 2, 
+       xaxt = "n")
+  lines(evenTimes[10:17],odd_timepoints[10:17], col = "red")
+  axis(1,evenTimes[11:17], labels = labels_days)
+}
 
-library(plotrix)
-axis.break(1, c(.6,.8), style = "slash")
-axis.break(1,1, style = "slash")
 
-par(cex.axis = 1, cex.lab = 1.5)
-gap.plot(x, LFQheads_LOG2[which(rownames(LFQheads_LOG2)==4034),even])#,gap = c(0.666,1))
+timeSeries_protein_plot(n)
 
-lines(LFQheads_LOG2[which(rownames(LFQheads_LOG2)==4034), odd], col = "red") 
-ks.test(LFQheads_LOG2[which(rownames(LFQheads_LOG2)==n),even[10:17]],LFQheads_LOG2[which(rownames(LFQheads_LOG2)==n), odd[10:17]])
+#ks.test(LFQheads_LOG2[which(rownames(LFQheads_LOG2)==n),even[10:17]],LFQheads_LOG2[which(rownames(LFQheads_LOG2)==n), odd[10:17]])
+
+
+ranked_pls_loading1 <- as.numeric(sub(".*LOG2)","", 
+                                      names(rev(treatment_plsda$loadings[order(-abs(treatment_plsda$loadings[,1])),1][1:25]))))
+
+df <- data.frame(Protein.ID = as.numeric(), Anova.p.Samply_Type = as.numeric(), 
+                 Anova.p.time = as.numeric(), Anova.p.Samply_Type.Time = as.numeric())
+
+
+for(i in 1:length(ranked_pls_loading1)){
+  n <- ranked_pls_loading1[i]
+  
+  aov_n <- aov(LFQheads_LOG2[which(rownames(LFQheads_LOG2)==n),] ~  head_meta$Sample_Type * head_meta$time)
+  
+  df[i,] <- c(n,summary(aov_n)[[1]][["Pr(>F)"]])
+}
+
+intensity_protein <- LFQheads_LOG2[which(rownames(LFQheads_LOG2)==n),]
+
+
+Sample_Type <- head_meta$Sample_Type
+time_series <- head_meta$time
+
+
+
+anova_model <- lapply(paste)
 
 anova1 <- aov(LFQheads_LOG2[which(rownames(LFQheads_LOG2)==4034),] ~  head_meta$Sample_Type * head_meta$time)
 summary(anova1)
@@ -582,12 +631,7 @@ plot(LFQheads_LOG2[which(rownames(LFQheads_LOG2)==1145),even])
 
 y=1145
 
-proteinOfInterest <- function(y){
-  print(paste("proteinID: ", LFQheads_complete[which(LFQheads_complete$id == y),1]))
-  print(paste("geneID: ", LFQheads_complete[which(LFQheads_complete$id == y),2]))
-  plot(LFQheads_LOG2[which(rownames(LFQheads_LOG2)==y),even])
-  lines(LFQheads_LOG2[which(rownames(LFQheads_LOG2)==y), odd], col = "red") 
-}
+
 
 proteinOfInterest(6353)
 
@@ -625,9 +669,13 @@ proteinOfInterest(3429)
 
 proteinOfInterest(1246)
 
-proteinGroups_dros_heads[which(proteinGroups_dros_heads$Gene.names == "NURR1"),]
-x <- proteinGroups_dros_heads[grepl("^N", proteinGroups_dros_heads$Gene.names),]
 
+
+proteinGroups_dros_heads[which(proteinGroups_dros_heads$Gene.names == "Tau"),]
+
+
+Protiens <- rownames(proteinGroups_dros_heads[grepl("Q", proteinGroups_dros_heads$Pr),])
+df_proteins <- proteinGroups_dros_heads[Protiens,]
 
 x <- rnorm(50)
 y <- runif(30)
