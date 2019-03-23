@@ -543,30 +543,36 @@ timeSeries_protein_plot <- function(n){
   #plot for hours
   plot(evenTimes[1:10], even_timepoints[1:10],
        ylim = c(minimum_y_Intensity,max_y_Intensity),
+       xlab = "Time (Hours)", ylab = paste("Log2(Intensity of ",n,")"),  
+       pcex=2, 
        type = "b,c",
        pch = 19,
-       lty = 2, 
+       lty = 2,
+       main = paste(n),
        xaxt = "n")
   lines(evenTimes[1:11],odd_timepoints[1:11], col = "red") 
   axis(1,evenTimes[1:10], labels = labels_hours)
   #plot for days
   plot(evenTimes[11:17], even_timepoints[11:17], 
-       ylim = c(minimum_y_Intensity,max_y_Intensity), 
+       ylim = c(minimum_y_Intensity,max_y_Intensity),
+       xlab = "Time (Days)", ylab = paste("Log2(Intensity of ",n,")"),
        type = "b,c",
        pch = 19,
-       lty = 2, 
+       lty = 2,
+       main = paste(n),
        xaxt = "n")
   lines(evenTimes[10:17],odd_timepoints[10:17], col = "red")
   axis(1,evenTimes[11:17], labels = labels_days)
 }
 
 #plot the time series plot for individual proteins
-n <- 3272 #LFQheads_complete[which(LFQheads_complete$id == n),]
+
+n <- 5851#LFQheads_complete[which(LFQheads_complete$id == n),]
 timeSeries_protein_plot(n)
 
 #ks.test(LFQheads_LOG2[which(rownames(LFQheads_LOG2)==n),even[10:17]],LFQheads_LOG2[which(rownames(LFQheads_LOG2)==n), odd[10:17]])
 
-df <- data.frame(Protein.ID = as.numeric(), Anova.p.Samply_Type = as.numeric(), 
+df <- data.frame(id = as.numeric(), Anova.p.Samply_Type = as.numeric(), 
                  Anova.p.time = as.numeric(), Anova.p.Samply_Type.Time = as.numeric())
 
 
@@ -578,6 +584,20 @@ for(i in 1:length(ranked_pls_loading1)){
   df[i,] <- c(n,summary(aov_n)[[1]][["Pr(>F)"]])
 }
 
+matching_id <- which(LFQheads_complete$id %in% df$id)
+matching_proteins_genes <- LFQheads_complete[matching_id,c(1:3)]
+
+pls_top_proteins <- merge(matching_proteins_genes,df, by.y= "id")
+
+write.csv(pls_top_proteins, file = "G:/Projects/Proteomics/DorsophilaHead_Experiment/Routput/Brain/pls_top_protein_gene_id_aov_Brain_completeCase.csv", row.names = FALSE)
+
+for(i in 1:length(ranked_pls_loading1)){
+  n = pls_top_proteins[i,1]
+  
+  pdf(paste("G:/Projects/Proteomics/DorsophilaHead_Experiment/Figures/Brains/",n,"_timeseriesplot.pdf"), useDingbats = FALSE)
+  timeSeries_protein_plot(n)
+  dev.off()
+}
 
 
 #individual anova calculations 
@@ -625,9 +645,11 @@ plot(LFQheads_LOG2[which(rownames(LFQheads_LOG2)==1145),even])
 # Look for individual proteins by Gene.Name
 proteinGroups_dros_heads[which(proteinGroups_dros_heads$Gene.names == "Tau"),]
 
-
-Protiens <- rownames(proteinGroups_dros_heads[grepl("Q", proteinGroups_dros_heads$Pr),])
+#Q27367 CRQ
+#Q9V477 Tollo
+Protiens <- rownames(proteinGroups_dros_heads[grepl("P14599", proteinGroups_dros_heads$Protein.IDs),])
 df_proteins <- proteinGroups_dros_heads[Protiens,]
+n <- as.numeric(df_proteins$id)
 
 x <- rnorm(50)
 y <- runif(30)

@@ -9,9 +9,9 @@ library(dplyr)
 
 #### Load Data ####
 
-proteinGroups_dros_hemo <- read.csv("E:/Projects/Proteomics/DorsophilaHead_Experiment/txt_hemo_plusFrac/proteinGroups.csv", header = TRUE, sep = ",", stringsAsFactors = FALSE)
+proteinGroups_dros_hemo <- read.csv("G:/Projects/Proteomics/DorsophilaHead_Experiment/txt_hemo_plusFrac/proteinGroups.csv", header = TRUE, sep = ",", stringsAsFactors = FALSE)
 
-cat(paste0("Number of protein groups in Hemolymph Data before any filtering of missing measurements: ", nrow(proteinGroups_dros_hemo))) #, "\n", "Number of columns: ", ncol(proteinGroups_dros_hemo)))
+print(cat(paste0("Number of protein groups in Hemolymph Data before any filtering of missing measurements: ", nrow(proteinGroups_dros_hemo)))) #, "\n", "Number of columns: ", ncol(proteinGroups_dros_hemo)))
 
 
 #### Format Data ####
@@ -70,6 +70,9 @@ cat(paste0("Number of protein groups in Hemolymph Data before any filtering of m
 # print(paste0("Number of protein groups removed from dataset: ", length(remove.features)))
 # names(remove.features) = remove.features
 
+
+
+
 #### Format Data for imputation ####
 
 #subset matrix containing only samples that have been filtered 50% threshold
@@ -91,7 +94,9 @@ colnames(hemo_complete.case_log2) <- c("Ctr_1hr", "1hr", "Ctr_4hr","4hr", "Ctr_8
 
 #meta data for hemo data identifying if a sample is a control or TBI
 hemo_meta <- data.frame(HemoTimePoints = colnames(hemo_50percent_log2),Sample_Type=rep(c("Control","TBI"),4))
-
+hemo_times <- c((1/24), (1/24), (4/24), (4/24), (8/24), (8/24), (24/24), (24/24))
+hemo_meta$time <- hemo_times
+  
 #### Histogram of data ####
 
 #histogram of log2(intensities) for data set that has NA's
@@ -115,9 +120,19 @@ plot(pca_complete.case_hemolog2, type = "l")
 summary(pca_complete.case_hemolog2)
 
 #### PCA Prcomp Plot ####
-palette(c("mediumorchid2","mediumturquoise","olivedrab3", "darkgoldenrod1", 
-          "hotpink3", "red2", "steelblue2", "sienna2","slategray4", 
-          "deepskyblue", "orangered", "midnightblue"))
+colors <- c("#206F94", # teal
+            "#F47F72", #coral
+            "#75C69D", #baby green
+            "#2CA8E0", #coon blue
+            "#1F6F94", #darker blue
+            "#5C66AF", #light purpleblue
+            "#2A4093", #dark purpleblue
+            "#2C9379", #dark baby green
+            "#83D5F7", #light coon blue
+            "#93211E", #dark red
+            "#E73C25", #red
+            "#81143A", #dark pink
+            "#ED237A") #hot pink)
 
 # PCA Plot for Scores of Complete Cases
 sample.colors = as.numeric(factor(hemo_meta$Sample_Type))
@@ -126,8 +141,6 @@ text(pca_complete.case_hemolog2$x[,1], pca_complete.case_hemolog2$x[,2], labels 
      col = sample.colors)
 legend("topright", legend = levels(hemo_meta$Sample_Type), pch = 16, col = 1:length(levels(hemo_meta$Sample_Type)),
        y.intersp = 0.7)
-
-fviz_eig(pca_complete.case_hemolog2)
 
 plot(pca_complete.case_hemolog2$rotation, pch = 16, col = sample.colors, main = "Prcomp Loadings for Hemolymph Complete Cases")
 text(pca_complete.case_hemolog2$rotation[,1], pca_complete.case_hemolog2$rotation[,2], labels = rownames(hemo_complete.case_log2), 
@@ -288,6 +301,22 @@ pheatmap(
   main              = "log2 imputed Hemolymph Data"
 )
 
+##### pls-da complete cases #####
+
+treatment_hemo_plsda <- plsr(as.numeric(hemo_meta$Sample_Type) ~ t(hemo_complete.case_log2), method = "oscorespls", ncomp = 4)
+
+par(mar = c(4,6,4,1), las  = 1, mgp = c(2.5,0.5,0), tcl =  -0.3, ps = 12)
+sample.colors = as.numeric(factor(hemo_meta$Sample_Type))
+plot(treatment_hemo_plsda$scores, pch = 19, col = colors[sample.colors])
+legend("bottomright", legend = levels(factor(hemo_meta$Sample_Type)), pch = 16, col = colors[1:length(levels(factor(hemo_meta$Sample_Type)))])
+text(treatment_hemo_plsda$scores[,1], treatment_hemo_plsda$scores[,2], as.character(hemo_meta$HemoTimePoints), pos = 4, offset = 0.5, cex = 0.8)
+
+par(mar = c(4,6,4,1), las  = 1, mgp = c(2.5,0.5,0), tcl =  -0.3, ps = 12)
+dotchart(rev(treatment_hemo_plsda$loadings[order(-abs(treatment_hemo_plsda$loadings[,1])),1][1:25]),
+         pch=19,
+         color = "#5C66AF",
+         xlab = "Component 1 Loadings")
+
 ###### time series #######
 
 #randomly sample from the hemo_complete.case file
@@ -300,4 +329,93 @@ sample.series$protein.ID <- proteins.id
 sample.series.wide <- melt(sample.series, 'protein.ID')
 colnames(sample.series.wide) <- c("protein.ID", "sample.ID", "Intensity")
 sample.series.wide$Log2.Intensity <- log2(sample.series.wide$Intensity)
+sample.series.wide$time <- c(rep(1,200), rep(4, 200), rep(8,200), rep(24, 200))
+sample.series.wide$type <- rep(c(rep("Control", 100), rep("TBI", 100)),4)
 
+
+mod_sample.ID <- lm(Log2.Intensity~sample.ID, sample.series.wide)
+hist(mod_sample.ID$residuals)
+mean(mod_sample.ID$residuals)
+
+mod_time <- lm(Log2.Intensity~time, sample.series.wide)
+hist(mod_time$residuals)
+
+mod_sample.ID_time <- lm(Log2.Intensity~sample.ID+time, sample.series.wide)
+hist(mod_sample.ID_time$residuals)
+
+mod_time_sample.ID <- lm(Log2.Intensity~time+sample.ID, sample.series.wide)
+hist(mod_time_sample.ID$residuals)
+
+
+par(mfrow = c(2,2)) # set 2 rows and 2 column plot layout
+plot(mod_sample.ID)
+
+
+ranked_pls_loading_hemo <- as.numeric(sub(".*log2)", "", names(rev(treatment_hemo_plsda$loadings[order(-abs(treatment_hemo_plsda$loadings[,1])),1][1:50]))))
+labels_hemo_hours <- c("1","4","8","24")
+
+hemo_timeSeries_protein_plot <- function(n){
+  even_timepoints <- hemo_complete.case_log2[which(rownames(hemo_complete.case_log2)==n),seq(2,8,2)]
+  odd_timepoints <- hemo_complete.case_log2[which(rownames(hemo_complete.case_log2)==n),seq(1,7,2)]
+  
+  if(min(even_timepoints) < min(odd_timepoints)){
+    minimum_y_Intensity <- min(even_timepoints)
+  }else{
+    minimum_y_Intensity <- min(odd_timepoints)
+  }
+  
+  if(max(even_timepoints) > max(odd_timepoints)){
+    max_y_Intensity <- max(even_timepoints)
+  }else{
+    max_y_Intensity <- max(odd_timepoints)
+  }
+  
+  #par(mfrow = c(1,2))
+  #layout(matrix(c(1,1), 1, 2, byrow = TRUE), widths=c(2,1), heights=c(1,2))
+  par(mar = c(4,6,4,1), las  = 1, mgp = c(2.5,0.5,0), tcl =  -0.3, ps = 12)
+  #plot for hours
+  plot(hemo_times[seq(2,8,2)], even_timepoints,
+       ylim = c(minimum_y_Intensity,max_y_Intensity),
+       xlab = "Time (Hours)", ylab = paste("Log2(Intensity of ",n,")"),  
+       cex=2, 
+       type = "b,c",
+       pch = 19,
+       lty = 2,
+       main = paste(n),
+       xaxt = "n")
+  lines(hemo_times[seq(2,8,2)],odd_timepoints, col = "red") 
+  axis(1,hemo_times[seq(2,8,2)], labels = labels_hemo_hours)
+}
+
+
+
+n = 70
+hemo_timeSeries_protein_plot(n)
+proteins_hemo <- proteinGroups_dros_hemo[which(proteinGroups_dros_hemo$id==n),]
+proteins_hemo <- rownames(proteinGroups_dros_hemo[grepl("", proteinGroups_dros_hemo),])
+
+
+df_hemo <- data.frame(id = as.numeric(), Anova.p.Samply_Type = as.numeric(), 
+                      Anova.p.time = as.numeric(), Anova.p.Samply_Type.Time = as.numeric())
+for(i in 1:length(ranked_pls_loading_hemo)){
+  n <- ranked_pls_loading_hemo[i]
+  
+  aov_n_hemo <- aov(hemo_complete.case_log2[which(rownames(hemo_complete.case_log2)==n),] ~ hemo_meta$Sample_Type*hemo_meta$time)
+  
+  df_hemo[i,] <- c(n,summary(aov_n_hemo)[[1]][["Pr(>F)"]])
+}
+
+matching_id_hemo <- which(complete.case_filtered_dros_hemo$id %in% df_hemo$id)
+matching_proteins_genes_hemo <- complete.case_filtered_dros_hemo[matching_id_hemo, c(1:3)]
+pls_top_proteins_hemo <- merge(matching_proteins_genes_hemo, df_hemo, by.y = "id")
+
+write.csv(pls_top_proteins_hemo, file = "G:/Projects/Proteomics/DorsophilaHead_Experiment/Routput/Hemo/pls_top_protein_gene_id_aov_HEMO_completeCase.csv", row.names = FALSE)
+
+
+for(i in 1:length(ranked_pls_loading_hemo)){
+  n = pls_top_proteins_hemo[i,1]
+  
+  pdf(paste("G:/Projects/Proteomics/DorsophilaHead_Experiment/Figures/Hemo/",n,"_timeseriesplot.pdf"), useDingbats = FALSE)
+  hemo_timeSeries_protein_plot(n)
+  dev.off()
+}
