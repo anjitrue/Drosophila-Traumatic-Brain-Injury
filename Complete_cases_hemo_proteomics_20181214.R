@@ -1,23 +1,23 @@
 library(devtools)
-install.packages("ggbiplot", "vqv")
-library(ggbiplot)
 library(pcaMethods)
 library(ggplot2)
 library(reshape2)
 library(factoextra)
 library(dplyr)
+library(pheatmap)
 
 #### Load Data ####
 
-proteinGroups_dros_hemo <- read.csv("G:/Projects/Proteomics/DorsophilaHead_Experiment/txt_hemo_plusFrac/proteinGroups.csv", header = TRUE, sep = ",", stringsAsFactors = FALSE)
+proteinGroups_dros_hemo_MAXQuant <- read.csv("G:/Projects/Proteomics/DorsophilaHead_Experiment/txt_hemo_plusFrac/proteinGroups.csv", header = TRUE, sep = ",", stringsAsFactors = FALSE)
 
-print(cat(paste0("Number of protein groups in Hemolymph Data before any filtering of missing measurements: ", nrow(proteinGroups_dros_hemo)))) #, "\n", "Number of columns: ", ncol(proteinGroups_dros_hemo)))
+cat(paste0("Number of protein groups in Hemolymph Data before any filtering of missing measurements: ",
+                 nrow(proteinGroups_dros_hemo))) #, "\n", "Number of columns: ", ncol(proteinGroups_dros_hemo)))
 
 
 #### Format Data ####
 
 subsetLFQ <- function(x){
-  y <- proteinGroups_dros_hemo[,which(names(proteinGroups_dros_hemo) %in% c("Protein.IDs", "id","Gene.names"))]
+  y <- proteinGroups_dros_hemo_MAXQuant[,which(names(proteinGroups_dros_hemo_MAXQuant) %in% c("Protein.IDs", "id","Gene.names"))]
   z <- x[,grep("LFQ.intensity",names(x))]
   z[z == 0] <- NA
   x <- data.frame(y,z)
@@ -50,10 +50,10 @@ proteinGroups_dros_hemo <- subsetLFQ(proteinGroups_dros_hemo)
 sum(is.na(proteinGroups_dros_hemo)) #28143
 
 #remove protein groups missing more than 50% of the measurments
-filtered_dros_hemo_50percent <- remove.features.50percentcuttoff(proteinGroups_dros_hemo)
+filtered_dros_hemo_50percent <- remove.features.50percentcuttoff(proteinGroups_dros_hemo) #[1] 6035   11
 rownames(filtered_dros_hemo_50percent) <- filtered_dros_hemo_50percent$id
 #keep only the complete cases
-complete.case_filtered_dros_hemo <- filtered_dros_hemo_50percent[complete.cases(filtered_dros_hemo_50percent),]
+complete.case_filtered_dros_hemo <- filtered_dros_hemo_50percent[complete.cases(filtered_dros_hemo_50percent),] #[1] 4851   11
 
 
 cat(paste0("Number of protein groups in Hemolymph Data before any filtering of missing measurements: ", nrow(complete.case_filtered_dros_hemo))) #4815
@@ -71,26 +71,25 @@ cat(paste0("Number of protein groups in Hemolymph Data before any filtering of m
 # names(remove.features) = remove.features
 
 
+#### Subset Data with log2 values only ####
+
+subset_hemo <- function(x){
+  #subset matrix containing only abundance values and log2 transform
+  hemo_log2 <- log2(as.matrix(x[,c(4:11)]))
+  #set row names to match protein group identifer number
+  rownames(hemo_log2) <- x$id
+  colnames(hemo_log2) <- c("Ctr_1hr", "1hr", "Ctr_4hr","4hr", "Ctr_8hr", "8hr", "Ctr_24hr", "24hr")
+  
+  return(hemo_log2)
+  }
+
+# for imputation data
+hemo_50percent_log2 <- subset_hemo(filtered_dros_hemo_50percent)
 
 
-#### Format Data for imputation ####
+# for complete cases
+hemo_complete.case_log2 <- subset_hemo(complete.case_filtered_dros_hemo)
 
-#subset matrix containing only samples that have been filtered 50% threshold
-hemo_50percent <- as.matrix(filtered_dros_hemo_50percent[,c(4:11)])
-#log2 transform
-hemo_50percent_log2 <- log2(hemo_50percent)
-#set row names to match protein group identifer number
-rownames(hemo_50percent_log2) <- filtered_dros_hemo_50percent$id
-colnames(hemo_50percent_log2) <- c("Ctr_1hr", "1hr", "Ctr_4hr","4hr", "Ctr_8hr", "8hr", "Ctr_24hr", "24hr")
-
-#### Format Data for complete cases ####
-#subset matrix containing only samples that have no NA values
-hemo_complete.case <- as.matrix(complete.case_filtered_dros_hemo[,c(4:11)])
-#log2 transform
-hemo_complete.case_log2 <- log2(hemo_complete.case)
-#set row names to match protein group identifer number
-rownames(hemo_complete.case_log2) <- complete.case_filtered_dros_hemo$id
-colnames(hemo_complete.case_log2) <- c("Ctr_1hr", "1hr", "Ctr_4hr","4hr", "Ctr_8hr", "8hr", "Ctr_24hr", "24hr")
 
 #meta data for hemo data identifying if a sample is a control or TBI
 hemo_meta <- data.frame(HemoTimePoints = colnames(hemo_50percent_log2),Sample_Type=rep(c("Control","TBI"),4))
@@ -136,17 +135,14 @@ colors <- c("#206F94", # teal
 
 # PCA Plot for Scores of Complete Cases
 sample.colors = as.numeric(factor(hemo_meta$Sample_Type))
-plot(pca_complete.case_hemolog2$x, pch = 16, col = sample.colors, main = "Prcomp Scores for Hemolymph Complete Cases")
-text(pca_complete.case_hemolog2$x[,1], pca_complete.case_hemolog2$x[,2], labels = colnames(hemo_complete.case_log2), 
-     col = sample.colors)
-legend("topright", legend = levels(hemo_meta$Sample_Type), pch = 16, col = 1:length(levels(hemo_meta$Sample_Type)),
+plot(pca_complete.case_hemolog2$x, pch = 16, col = colors[sample.colors], main = "Prcomp Scores for Hemolymph Complete Cases")
+text(pca_complete.case_hemolog2$x[,1], pca_complete.case_hemolog2$x[,2], labels = colnames(hemo_complete.case_log2))
+legend("topright", legend = levels(hemo_meta$Sample_Type), pch = 16, col = colors[1:length(levels(hemo_meta$Sample_Type))],
        y.intersp = 0.7)
 
 plot(pca_complete.case_hemolog2$rotation, pch = 16, col = sample.colors, main = "Prcomp Loadings for Hemolymph Complete Cases")
-text(pca_complete.case_hemolog2$rotation[,1], pca_complete.case_hemolog2$rotation[,2], labels = rownames(hemo_complete.case_log2), 
-     col = sample.colors)
-legend("bottomleft", legend = levels(hemo_meta$Sample_Type), pch = 16, col = 1:length(levels(hemo_meta$Sample_Type)),
-       y.intersp = 0.7)
+text(pca_complete.case_hemolog2$rotation[,1], pca_complete.case_hemolog2$rotation[,2], labels = rownames(hemo_complete.case_log2))
+
 
 #### PCA bayesian with imputation ####
 sum(is.na(hemo_50percent_log2)) #2935 missing values out of 48,280 (6% of the data)
@@ -194,8 +190,8 @@ important_complete.cases_hemo_foldchange <- fold_change.complete.cases[rowSums(a
 
 # bin protein groups so that we describe the changes within fold changes of -2 and 2
 important_complete.cases_foldchange_compress <- important_complete.cases_hemo_foldchange
-important_complete.cases_foldchange_compress[important_complete.cases_foldchange_compress < -2] = -2.1
-important_complete.cases_foldchange_compress[important_complete.cases_foldchange_compress > 2] = -2.1
+important_complete.cases_foldchange_compress[important_complete.cases_foldchange_compress < -4] = -4.1
+important_complete.cases_foldchange_compress[important_complete.cases_foldchange_compress > 4] = 4.1
 
 # Protein groups with fold change greater than 1.2
 table(rowSums(abs(fold_change.complete.cases)>1.2)>0)
@@ -209,8 +205,7 @@ table(rowSums(abs(fold_change.complete.cases)>4)>0)
 # Protein groups with fold change greater than 8
 table(rowSums(abs(fold_change.complete.cases)>8)>0)
 
-scaleRYG <- colorRampPalette(c("red","black","darkgreen"), space = "rgb")(31)
-
+scaleRYG <- colorRampPalette(c("red","white","#2CA8E0"), space = "rgb")(31)
 
 pheatmap(
   mat               = reordered_hemo_complete.case_log2,
@@ -271,7 +266,7 @@ pheatmap(
   #annotation_colors = mat_colors,
   drop_levels       = TRUE,
   fontsize          = 10,
-  main              = "Fold Change with compressed Hemo Data, binning <-2 and >2"
+  main              = "Fold Change with compressed Hemo Data, binning <-4 and >4"
 )
 complete.case_hclust <- hclust(dist(fold_change.complete.cases, method = "euclidean"))
 clusters <- cutree(complete.case_hclust, k = 20) #k = 20)
@@ -316,6 +311,8 @@ dotchart(rev(treatment_hemo_plsda$loadings[order(-abs(treatment_hemo_plsda$loadi
          pch=19,
          color = "#5C66AF",
          xlab = "Component 1 Loadings")
+
+
 
 ###### time series #######
 
@@ -385,6 +382,8 @@ hemo_timeSeries_protein_plot <- function(n){
        xaxt = "n")
   lines(hemo_times[seq(2,8,2)],odd_timepoints, col = "red") 
   axis(1,hemo_times[seq(2,8,2)], labels = labels_hemo_hours)
+  legend("topright", legend = levels(factor(head_meta$Sample_Type)), 
+         lty = 1, col = c("red","black"))
 }
 
 
@@ -392,24 +391,33 @@ hemo_timeSeries_protein_plot <- function(n){
 n = 70
 hemo_timeSeries_protein_plot(n)
 proteins_hemo <- proteinGroups_dros_hemo[which(proteinGroups_dros_hemo$id==n),]
-proteins_hemo <- rownames(proteinGroups_dros_hemo[grepl("", proteinGroups_dros_hemo),])
 
+proteins_hemo_n <- rownames(proteinGroups_dros_hemo[grepl("Q8IN44", proteinGroups_dros_hemo$Protein.IDs),])
+df_proteins_hemo <- proteinGroups_dros_hemo[proteins_hemo_n,]
+n <- as.numeric(df_proteins_hemo$id)
+
+top_proteins_hemo_loadings <- rev(treatment_hemo_plsda$loadings[order(-abs(treatment_hemo_plsda$loadings[,1])),1][1:50])
+names(top_proteins_hemo_loadings) <- ranked_pls_loading_hemo
 
 df_hemo <- data.frame(id = as.numeric(), Anova.p.Samply_Type = as.numeric(), 
-                      Anova.p.time = as.numeric(), Anova.p.Samply_Type.Time = as.numeric())
+                      Anova.p.time = as.numeric(), Anova.p.Samply_Type.Time = as.numeric(), na = as.character(), Loading = as.numeric())
 for(i in 1:length(ranked_pls_loading_hemo)){
   n <- ranked_pls_loading_hemo[i]
   
   aov_n_hemo <- aov(hemo_complete.case_log2[which(rownames(hemo_complete.case_log2)==n),] ~ hemo_meta$Sample_Type*hemo_meta$time)
   
-  df_hemo[i,] <- c(n,summary(aov_n_hemo)[[1]][["Pr(>F)"]])
+  df_hemo[i,] <- c(n,summary(aov_n_hemo)[[1]][["Pr(>F)"]],top_proteins_hemo_loadings[as.character(n)][[1]])
 }
 
 matching_id_hemo <- which(complete.case_filtered_dros_hemo$id %in% df_hemo$id)
 matching_proteins_genes_hemo <- complete.case_filtered_dros_hemo[matching_id_hemo, c(1:3)]
+
 pls_top_proteins_hemo <- merge(matching_proteins_genes_hemo, df_hemo, by.y = "id")
 
-write.csv(pls_top_proteins_hemo, file = "G:/Projects/Proteomics/DorsophilaHead_Experiment/Routput/Hemo/pls_top_protein_gene_id_aov_HEMO_completeCase.csv", row.names = FALSE)
+rownames(pls_top_proteins_hemo) <- pls_top_proteins_hemo$id
+pls_top_proteins_hemo <- merge(pls_top_proteins_hemo, fold_change.complete.cases, by = "row.names")
+
+write.csv(pls_top_proteins_hemo, file = "G:/Projects/Proteomics/DorsophilaHead_Experiment/Routput/Hemo/20190325pls_top_protein_gene_id_aov_HEMO_completeCase.csv", row.names = FALSE)
 
 
 for(i in 1:length(ranked_pls_loading_hemo)){

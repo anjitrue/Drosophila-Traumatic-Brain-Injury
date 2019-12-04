@@ -21,8 +21,15 @@ Ensembl_protein_id <- proteinGroups_Ensembl_reducedtoLFQ$`Protein IDs`
 Uniprot_protein_id <- proteinGroups_Uniprot_reducedtoLFQ$`Protein IDs`
 
 # Subset dataframe to only the protein IDs
-Uniprot_join <- data.frame(proteinGroups_Uniprot_reducedtoLFQ[,c(1,2)])
+Uniprot_join <- data.frame(proteinGroups_Uniprot_reducedtoLFQ[,c(1,2,31)])
 rownames(Uniprot_join) <- Uniprot_join$`Protein.IDs`
+
+# Create a dataframe that 
+levels(Uniprot_join$Majority.protein.IDs) <- Uniprot_join$id
+Uniprot_split <- strsplit(Uniprot_join$Majority.protein.IDs,';')
+Uniprot_split <- data.frame(ProteinID = rep(Uniprot_join$id, sapply(Uniprot_split, length)), 
+                            ProteinName = unlist(Uniprot_split))
+write.table(Uniprot_split, "E:/Projects/Proteomics/DiversityOutcross/txt_Uniprot/Rmodified_Uniprot_extendedProteinTable.txt", sep="\t")
 #protein_id <- Uniprot_test$Protein.IDs
 
 #--------------------------------------------- BiomaRt Code -------------------------------------------

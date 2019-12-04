@@ -128,8 +128,7 @@ plot(pca_complete_LFQheads$x, pch = 19, cex = 2,
      ylim = c(-50, 50), xlim = c(-50, 50), 
      xlab = "PC1\n32.48%", ylab ="PC2\n10.27%")
 text(pca_complete_LFQheads$x[,1], pca_complete_LFQheads$x[,2], 
-     labels = colnames(LFQheads_LOG2), 
-     col = colors[sample.colors])
+     labels = colnames(LFQheads_LOG2))
 legend("topright", legend = levels(factor(head_meta$day)), pch = 16, 
        col = colors[1:length(levels(factor(head_meta$day)))], y.intersp = 0.7)
 
@@ -140,8 +139,7 @@ plot(pca_first24hours$x, pch = 19, cex = 3, col = colors[sample.colors],
      main = "Principle Component Analysis\n First 24 hours", 
      ylim = c(-25, 25), xlim = c(-25, 25), 
      xlab = "PC1\n 17.20%", ylab ="PC2\n 14.42%")
-text(pca_first24hours$x[,1], pca_first24hours$x[,2], 
-     labels = colnames(LFQheads_LOG2[,1:20]))
+text(pca_first24hours$x[,1], pca_first24hours$x[,2]) #, labels = colnames(LFQheads_LOG2[,1:20]))
 legend("topleft", legend = levels(factor(head_meta[1:20,]$Sample_Type)), 
        pch = 16, 
        col = colors[1:length(levels(factor(head_meta[1:20,]$Sample_Type)))])
@@ -153,8 +151,7 @@ plot(pca_first24hours$x[,3], pca_first24hours$x[,2], pch = 19, cex = 3,
      main = "Principle Component Analysis\n First 24 hours", 
      ylim = c(-25, 25), xlim = c(-25, 25), 
      xlab = "PC3 9.07%", ylab ="PC2 14.42%")
-text(pca_first24hours$x[,3], pca_first24hours$x[,2], 
-     labels = colnames(LFQheads_LOG2[,1:20]))
+text(pca_first24hours$x[,3], pca_first24hours$x[,2]) #, labels = colnames(LFQheads_LOG2[,1:20]))
 legend("topleft", legend = levels(factor(head_meta[1:20,]$Sample_Type)), 
        pch = 16, 
        col = colors[1:length(levels(factor(head_meta[1:20,]$Sample_Type)))])
@@ -321,7 +318,7 @@ boxplot(reorder_brains, notch = TRUE)
 #histogram of log2(intensities) for data set that has NA's
 hist(LFQheads_LOG2, breaks = 20, xlab = "Log2(Brain data complete cases)", main = "Histogram of Brain Data")
 
-scaleRYG <- colorRampPalette(c("red","black","chartreuse4"), space = "rgb")(31)
+scaleRYG <- colorRampPalette(c("red","white","#2CA8E0"), space = "rgb")(31)
 
 par(mar = c(4,6,4,1), las  = 1, mgp = c(2.5,0.5,0), tcl =  -0.3, ps = 12)
 pheatmap(
@@ -520,6 +517,8 @@ proteinOfInterest(n)
 
 ranked_pls_loading1 <- as.numeric(sub(".*LOG2)","", 
                                       names(rev(treatment_plsda$loadings[order(-abs(treatment_plsda$loadings[,1])),1][1:50]))))
+top_proteins_brain_loadings <- rev(treatment_plsda$loadings[order(-abs(treatment_plsda$loadings[,1])),1][1:50])
+names(top_proteins_brain_loadings) <- ranked_pls_loading1
 
 timeSeries_protein_plot <- function(n){
   even_timepoints <- LFQheads_LOG2[which(rownames(LFQheads_LOG2)==n),even]
@@ -548,10 +547,12 @@ timeSeries_protein_plot <- function(n){
        type = "b,c",
        pch = 19,
        lty = 2,
-       main = paste(n),
+       main = paste(n,"-", gene_name),
        xaxt = "n")
   lines(evenTimes[1:11],odd_timepoints[1:11], col = "red") 
   axis(1,evenTimes[1:10], labels = labels_hours)
+  legend("topright", legend = levels(factor(head_meta$Sample_Type)), 
+         lty = 1, col = c("red","black"))
   #plot for days
   plot(evenTimes[11:17], even_timepoints[11:17], 
        ylim = c(minimum_y_Intensity,max_y_Intensity),
@@ -559,21 +560,24 @@ timeSeries_protein_plot <- function(n){
        type = "b,c",
        pch = 19,
        lty = 2,
-       main = paste(n),
+       main = paste(n,"-", gene_name),
        xaxt = "n")
   lines(evenTimes[10:17],odd_timepoints[10:17], col = "red")
   axis(1,evenTimes[11:17], labels = labels_days)
+  legend("topright", legend = levels(factor(head_meta$Sample_Type)), 
+         lty = 1, col = c("red","black"))
+  
 }
 
 #plot the time series plot for individual proteins
 
-n <- 5851#LFQheads_complete[which(LFQheads_complete$id == n),]
+n <- 5331#LFQheads_complete[which(LFQheads_complete$id == n),]
 timeSeries_protein_plot(n)
 
 #ks.test(LFQheads_LOG2[which(rownames(LFQheads_LOG2)==n),even[10:17]],LFQheads_LOG2[which(rownames(LFQheads_LOG2)==n), odd[10:17]])
 
 df <- data.frame(id = as.numeric(), Anova.p.Samply_Type = as.numeric(), 
-                 Anova.p.time = as.numeric(), Anova.p.Samply_Type.Time = as.numeric())
+                 Anova.p.time = as.numeric(), Anova.p.Samply_Type.Time = as.numeric(),na = as.character(), Loading = as.numeric())
 
 
 for(i in 1:length(ranked_pls_loading1)){
@@ -581,7 +585,7 @@ for(i in 1:length(ranked_pls_loading1)){
   
   aov_n <- aov(LFQheads_LOG2[which(rownames(LFQheads_LOG2)==n),] ~  head_meta$Sample_Type * head_meta$time)
   
-  df[i,] <- c(n,summary(aov_n)[[1]][["Pr(>F)"]])
+  df[i,] <- c(n,summary(aov_n)[[1]][["Pr(>F)"]],top_proteins_brain_loadings[as.character(n)][[1]])
 }
 
 matching_id <- which(LFQheads_complete$id %in% df$id)
@@ -589,7 +593,7 @@ matching_proteins_genes <- LFQheads_complete[matching_id,c(1:3)]
 
 pls_top_proteins <- merge(matching_proteins_genes,df, by.y= "id")
 
-write.csv(pls_top_proteins, file = "G:/Projects/Proteomics/DorsophilaHead_Experiment/Routput/Brain/pls_top_protein_gene_id_aov_Brain_completeCase.csv", row.names = FALSE)
+write.csv(pls_top_proteins, file = "G:/Projects/Proteomics/DorsophilaHead_Experiment/Routput/Brain/20190325pls_top_protein_gene_id_aov_Brain_completeCase.csv", row.names = FALSE)
 
 for(i in 1:length(ranked_pls_loading1)){
   n = pls_top_proteins[i,1]
@@ -639,17 +643,43 @@ plot(LFQheads_LOG2[which(rownames(LFQheads_LOG2)==3270),even])
 
 
 # 1145
-x <- LFQheads_complete[which(LFQheads_complete$id == 1145),]
+x <- LFQheads_complete[which(LFQheads_complete$id == protein_id),]
 plot(LFQheads_LOG2[which(rownames(LFQheads_LOG2)==1145),even])
 
+protein_id <- 5606
+x <- LFQheads_complete[which(LFQheads_complete$id == protein_id),]
+protein_id <- x$id
+gene_name <- x$Gene.names
+n <- as.numeric(protein_id)
+timeSeries_protein_plot(n)
+
+
 # Look for individual proteins by Gene.Name
-proteinGroups_dros_heads[which(proteinGroups_dros_heads$Gene.names == "Tau"),]
+Gene.name <- proteinGroups_dros_heads[which(proteinGroups_dros_heads$Gene.names == gene_name),]
+protein_id <- Gene.name$id
+n <- protein_id
+x <- LFQheads_complete[which(LFQheads_complete$id == protein_id),]
+plot(LFQheads_LOG2[which(rownames(LFQheads_LOG2)==protein_id),even])
+
 
 #Q27367 CRQ
 #Q9V477 Tollo
-Protiens <- rownames(proteinGroups_dros_heads[grepl("P14599", proteinGroups_dros_heads$Protein.IDs),])
+Protiens <- rownames(proteinGroups_dros_heads[grepl("Q9V477", proteinGroups_dros_heads$Protein.IDs),])
 df_proteins <- proteinGroups_dros_heads[Protiens,]
 n <- as.numeric(df_proteins$id)
+
+
+#Q9W2S2 Atg8a
+#A1ZBL0 betaTub56D
+#P08841 betaTub60D
+#P14599 Appl 
+#Q9VYX7 PGRP-SA peptidoglycans
+#Q70PY2
+Protiens <- rownames(proteinGroups_dros_heads[grepl("Q9I7F7", proteinGroups_dros_heads$Majority.protein.IDs),])
+df_proteins <- proteinGroups_dros_heads[Protiens,]
+gene_name <- df_proteins$Gene.names 
+n <- as.numeric(df_proteins$id)
+timeSeries_protein_plot(n)
 
 x <- rnorm(50)
 y <- runif(30)
