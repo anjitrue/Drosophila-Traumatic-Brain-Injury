@@ -235,6 +235,31 @@ print(paste("Number of complete proteins: ", nrow(proteinGroups_dros_Brain_FWW))
 
 ```
 
+```{r, echo=FALSE}
+
+colors <- c("#206F94", # teal
+            "#F47F72", #coral
+            "#75C69D", #baby green
+            "#2CA8E0", #coon blue
+            "#1F6F94", #darker blue
+            "#5C66AF", #light purpleblue
+            "#2A4093", #dark purpleblue
+            "#2C9379", #dark baby green
+            "#83D5F7", #light coon blue
+            "#93211E", #dark red
+            "#E73C25", #red
+            "#81143A", #dark pink
+            "#ED237A") #hot pink)
+
+par(mar=c(6.5, 7.5, 4.5, 1))
+plot(pca_complete_HC$x, pch = 19, cex = 2,
+     col = colors[1:7], 
+     main = "Principle Component Analysis\n Human Controls LFQ", 
+     ylim = c(-20, 20), xlim = c(-20, 25), 
+     xlab = "PC1 36.26%", ylab ="PC2 26.63%")
+text(pca_complete_HC$x[,1], pca_complete_HC$x[,2], labels = colnames(hc_log2))
+```
+
 FWW dataset is Log2 transformed for further exploration and analysis. Note for simplification MaxQuant identifiers for protein groups will be used in replacement of Uniprot ID or gene name.
 
 ```{r format_brains, echo=FALSE}
@@ -286,7 +311,7 @@ text(col_sums, labels = colnames(LFQ_FWW_Ordered))
 
 #Sum up all proteins to determine TIC of all samples (column wise) for only FW samples [,1:57]
 col_sums_FW <- apply(LFQ_FWW_Ordered[,1:57],2,sum)
-#col_sums <- log2(col_sums)
+col_sums_FW_Log2 <- apply(LFQ_FW_Ordered_LOG2,2,sum)
 
 plot(col_sums_FW, type = 'n',  main = "Summed TIC (non-transformed)", sub = "Brain Samples on FW", ylab = "TIC", xlab = "Sample Index")
 text(col_sums_FW, labels = colnames(LFQ_FWW_Ordered[,1:57]))
@@ -320,6 +345,30 @@ brain_FWW_meta$replicates <- gsub("[.]","",brain_FWW_meta$replicates)
                  # (16/24), (16/24), (24/24), (24/24), (48/24), (48/24), (72/24), (72/24), 
                  # 7, 7, 14, 14, 21, 21, 28, 28, 35, 35)
 #head_meta$time <- number_times
+
+sample.colors = as.numeric(factor(brain_FWW_meta$Samples[1:57]))
+mycolors <- colorRampPalette(brewer.pal(12, "Set3"))(length(unique(sample.colors)))
+par(mar=c(6.5, 7.5, 1.5, 1), mgp=c(3.5, 0.8, 0), las=1)
+barplot(col_sums_FW, 
+        main = "Summed TIC (not-transformed)",  
+        sub = "Brain Samples on FW",
+        xaxt="n",
+        ylab = "TIC", 
+        xlab = "Sample Index", 
+        ylim = c(0,7e+12),
+        col = mycolors[sample.colors])
+
+sample.colors = as.numeric(factor(brain_FWW_meta$Samples[1:57]))
+mycolors <- colorRampPalette(brewer.pal(12, "Set3"))(length(unique(sample.colors)))
+par(mar=c(6.5, 7.5, 1.5, 1), mgp=c(3.5, 0.8, 0), las=1)
+barplot(col_sums_FW_Log2, 
+        main = "Summed TIC (Log2 transformed)",  
+        sub = "Brain Samples on FW",
+        xaxt="n",
+        ylab = "TIC", 
+        xlab = "Sample Index", 
+        ylim = c(0,150000),
+        col = mycolors[sample.colors])
 
 ```
 
@@ -365,6 +414,7 @@ par(mar = c(4, 4, 0.2, 0.1))
 
 #PCA of all the samples
 sample.colors = as.numeric(factor(brain_FWW_meta$Condition))
+par(mar=c(6.5, 7.5, 4.5, 1))
 plot(pca_complete_LFQ_FWW$x, pch = 19, cex = 2,
      col = colors[sample.colors], 
      main = "Principle Component Analysis\n Brain TBI on Food & Water or Water", 
@@ -491,31 +541,17 @@ pheatmap(average_time.point_even[,-1],
 
 
 #### Normalization using time zero. Comparing time zero for TBI, Control, and TBI and Control combined. 
+Due to high variability originating from each replicate (n1, n2, n3), normalizing out some of this variability will be important for further analysis. Time zero for the TBI sample is collection right after imposing traumatic brain injury. A control sample was also collected at time zero for each replicate, providing an averaged sample that can be used for normalizing a baseline.  
 
+The following normalization exploration will be done on Brain TBI samples that were on Food and Water.
 ```{r normalize_time0, echo=FALSE}
-
-# Transpose LFQ dataframe. 
-t_LFQ_FW_ordered_LOG2 = t(LFQ_FW_Ordered_LOG2)
-# Bind with meta data 
-t_LFQ_FW_ordered_LOG2 <- cbind(brain_FWW_meta[1:57,], t_LFQ_FW_ordered_LOG2)
-# Change Sample from character to numeric
-t_LFQ_FW_ordered_LOG2$Samples <- as.numeric(t_LFQ_FW_ordered_LOG2$Samples)
-#row_sums <- apply(t_LFQ_FW_ordered_LOG2[1:3,-c(1:5)],1,sum)
-# subset odd samples - Control
-t_LFQ_FW_ordered_LOG2_odd <- t_LFQ_FW_ordered_LOG2[which(t_LFQ_FW_ordered_LOG2$Samples %in% odd),]
-# subset even samples - TBI
-t_LFQ_FW_ordered_LOG2_even <- t_LFQ_FW_ordered_LOG2[which(t_LFQ_FW_ordered_LOG2$Samples %in% even),]
-# Find average intensities for each protein across batches
-average_time.point <- aggregate(t_LFQ_FW_ordered_LOG2[,6:ncol(t_LFQ_FW_ordered_LOG2)],
-                                list(t_LFQ_FW_ordered_LOG2$Samples), mean)
 
 # Average of both Control and TBI time 0
 average_time.point_TBI_CTRL <- data.frame(colMeans(t_LFQ_FW_ordered_LOG2[1:6,6:ncol(t_LFQ_FW_ordered_LOG2)]))
 average_time.point_TBI_CTRL <- t(average_time.point_TBI_CTRL)
+
 # Add this average to the end of all the averages 
 average_time.point <- rbind(average_time.point[,-1],average_time.point_TBI_CTRL)
-
-
 
 # create a new data frame for normalization
 norm_FW_Log2 <- t_LFQ_FW_ordered_LOG2
@@ -576,70 +612,88 @@ for(j in 1:3) {
 
 
 
-# row bind the normalization doen 
+# row bind the normalization done using separate time zero and then perform PCA analysis 
 mean_normaized_FW_byProtein_sepTBIandCTRL <- rbind(norm_FW_Log2_odd,norm_FW_Log2_even)
-
 pca_FW_meanNormalized <- prcomp(mean_normaized_FW_byProtein_sepTBIandCTRL[,-c(1:5)])
 
+# Normalized Control Samples with time zero control
 pca_FW_meanNormalized_odd <- prcomp(norm_FW_Log2_odd[,-c(1:5)])
 
+# Normalized TBI samples with time zero for TBI
 pca_FW_meanNormalized_even <- prcomp(norm_FW_Log2_even[,-c(1:5)])
 
+# Normalized with a combine TBI and Control time zero
 pca_FW_meanNormalized_combined <- prcomp(norm_FW_Log2[,-c(1:5)])
 
 ```
 
+PCA plot of samples that were normalized by the sample type. An average time zero for Control and one for TBI was applied to the samples matching. After normalization all samples were analyzed by PCA. Note this still exhibits separation based on replicate.
 ```{r, echo=FALSE}
 sample.colors = as.numeric(factor(mean_normaized_FW_byProtein_sepTBIandCTRL$replicates))
+par(mar=c(6.5, 7.5, 4.5, 1))
 plot(pca_FW_meanNormalized$x, pch = 19, cex = 2,
      col = colors[3:5][sample.colors], 
      main = "Principle Component Analysis\n Brain TBI Normalized to Mean Protein Intensity\n on Food & Water", 
      ylim = c(-20, 20), xlim = c(-20, 25), 
      xlab = "PC1 16.18%", ylab ="PC2 13.99%")
-#text(pca_FW$x[,1][1:57], pca_FW$x[,2][1:57], labels = colnames(LFQ_FWW_Ordered_LOG2)[1:57])
-legend("topright", legend = levels(factor(mean_normaized_FW_byProtein_sepTBIandCTRL$replicates)), pch = 16, 
-       col = colors[3:5][1:length(levels(factor(mean_normaized_FW_byProtein_sepTBIandCTRL$replicates)))], y.intersp = 0.7)
+text(pca_FW_meanNormalized$x[,1], pca_FW_meanNormalized$x[,2], 
+     labels = mean_normaized_FW_byProtein_sepTBIandCTRL$Samples)
+legend("topright", 
+       legend = levels(factor(mean_normaized_FW_byProtein_sepTBIandCTRL$replicates)), 
+       pch = 16, 
+       col = colors[3:5][1:length(levels(factor(mean_normaized_FW_byProtein_sepTBIandCTRL$replicates)))], 
+       y.intersp = 0.7)
+
+# sample.colors = as.numeric(factor(mean_normaized_FW_byProtein_sepTBIandCTRL$hour))
+# par(mar=c(6.5, 7.5, 4.5, 1))
+# plot(pca_FW_meanNormalized$x, pch = 19, cex = 2,
+#      col = colors[sample.colors], 
+#      main = "Principle Component Analysis\n Brain TBI Normalized to Mean Protein Intensity\n on Food & Water", 
+#      ylim = c(-20, 20), xlim = c(-20, 25), 
+#      xlab = "PC1 16.18%", ylab ="PC2 13.99%")
+# text(pca_FW_meanNormalized$x[,1], pca_FW_meanNormalized$x[,2], 
+#      labels = mean_normaized_FW_byProtein_sepTBIandCTRL$Samples)
+# legend("topright", 
+#        legend = levels(factor(mean_normaized_FW_byProtein_sepTBIandCTRL$replicates)), 
+#        pch = 16, 
+#        col = colors[1:length(levels(factor(mean_normaized_FW_byProtein_sepTBIandCTRL$replicates)))], 
+#        y.intersp = 0.7)
+
+```
+
+
+A bar plot of the summed TIC (protein intensities Log2 transformed) for each sample shows the variability between the replicates. 
+```{r, echo= FALSE}
+#Sum up all proteins to determine TIC of all samples (column wise)
+row_sums_Norm_AverageTime0_sepTBIandCTRL <- apply(mean_normaized_FW_byProtein_sepTBIandCTRL[,6:ncol(mean_normaized_FW_byProtein_sepTBIandCTRL)],1,sum)
+
+
+sample.colors = as.numeric(factor(mean_normaized_FW_byProtein_sepTBIandCTRL$Samples[1:27]))
+coul <- brewer.pal(length(unique(sample.colors)), "Set3")
+par(mar=c(6.5, 7.5, 1.5, 1), mgp=c(3.5, 0.8, 0), las=1)
+barplot(row_sums_Norm_AverageTime0_sepTBIandCTRL[1:27], 
+        main = "Summed TIC (transformed)", 
+        sub = "Brain Samples on FW",
+        xaxt="n",
+        ylab = "TIC", 
+        xlab = "Sample Index", 
+        ylim = c(0,150000),
+        col = coul[sample.colors])
+
+# plot(row_sums_Norm_AverageTime0_sepTBIandCTRL[1:27], type = 'n',  main = "Summed TIC (transformed)", sub = "Brain Samples on FW", ylab = "TIC", xlab = "Sample Index")
+# text(row_sums_Norm_AverageTime0_sepTBIandCTRL[1:27], labels = mean_normaized_FW_byProtein_sepTBIandCTRL$Samples[1:24])
+
 
 
 ```
 
-```{r, echo=FALSE}
-
-# PCA of the samples normalized to combine TBI and Ctrl time 0. PCA is looking at Odd samples or control samples
-sample.colors = as.numeric(factor(norm_FW_Log2_odd$replicates))
-plot(pca_FW_meanNormalized_odd$x, pch = 19, cex = 2,
-     col = colors[3:5][sample.colors], 
-     main = "Principle Component Analysis\n Brain TBI Normalized to Mean Protein Intensity of all time 0\n Control Samples on Food & Water", 
-     ylim = c(-20, 20), xlim = c(-20, 25), 
-     xlab = "PC1 25.23%", ylab ="PC2 20.76%")
-text(pca_FW_meanNormalized_odd$x[,1], pca_FW_meanNormalized_odd$x[,2], labels = norm_FW_Log2_odd$Samples)
-legend("topright", legend = levels(factor(norm_FW_Log2_odd$replicates)), pch = 16, 
-       col = colors[3:5][1:length(levels(factor(norm_FW_Log2_odd$replicates)))], y.intersp = 0.7)
-
-```
-
-
-```{r, echo=FALSE}
-
-# PCA of the samples normalized to combine TBI and Ctrl time 0. PCA is looking at Even samples or control samples
-sample.colors = as.numeric(factor(norm_FW_Log2_even$replicates))
-plot(pca_FW_meanNormalized_even$x, pch = 19, cex = 2,
-     col = colors[3:5][sample.colors], 
-     main = "Principle Component Analysis\n Brain TBI Normalized to Mean Protein Intensity\n TBI Samples on Food & Water", 
-     ylim = c(-20, 20), xlim = c(-20, 25), 
-     xlab = "PC1 27.87%", ylab ="PC2 16.24%")
-#text(pca_FW$x[,1][1:57], pca_FW$x[,2][1:57], labels = colnames(LFQ_FWW_Ordered_LOG2)[1:57])
-legend("topright", legend = levels(factor(norm_FW_Log2_even$replicates)), pch = 16, 
-       col = colors[3:5][1:length(levels(factor(norm_FW_Log2_even$replicates)))], y.intersp = 0.7)
-
-
-```
-
+PCA for samples normalized with a combined TBI and Control time zero. Therefore all samples were normalized to the same averaged time zero. 
 ```{r, echo=FALSE}
 sample.colors = as.numeric(factor(norm_FW_Log2$replicates))
+par(mar=c(6.5, 7.5, 4.5, 1))
 plot(pca_FW_meanNormalized_combined$x, pch = 19, cex = 2,
      col = colors[3:5][sample.colors], 
-     main = "Principle Component Analysis\n Brain TBI Normalized to Mean Protein Intensity of all time 0\n All Samples on Food & Water", 
+     main = "Principle Component Analysis\n Brain TBI and Control Samples Normalized to Averaged Time Zero\n All Samples on Food & Water", 
      ylim = c(-20, 20), xlim = c(-20, 25), 
      xlab = "PC1 16.13%", ylab ="PC2 13.18%")
 text(pca_FW_meanNormalized_combined$x[,1], pca_FW_meanNormalized_combined$x[,2], labels = norm_FW_Log2$Samples)
@@ -649,67 +703,224 @@ legend("topright", legend = levels(factor(norm_FW_Log2$replicates)), pch = 16,
 
 ```
 
-#### Normalizing to average TIC
+PCA of just the Controls that have been normalized with averaged TBI and Control time zero. 
+```{r, echo=FALSE}
 
-```{r normalize_TIC, include=TRUE}
-t_LFQ_FW_ordered <- 2^(t_LFQ_FW_ordered_LOG2[,-c(1:5)])
+# PCA of the samples normalized to combine TBI and Ctrl time 0. PCA is looking at Odd samples or control samples
+sample.colors = as.numeric(factor(norm_FW_Log2_odd$replicates))
+par(mar=c(6.5, 7.5, 4.5, 1))
+plot(pca_FW_meanNormalized_odd$x, pch = 19, cex = 2,
+     col = colors[3:5][sample.colors], 
+     main = "Principle Component Analysis\n Brain Control Samples Normalized to Averaged Time Zero\n Control Samples on Food & Water", 
+     ylim = c(-20, 20), xlim = c(-20, 25), 
+     xlab = "PC1 25.23%", ylab ="PC2 20.76%")
+text(pca_FW_meanNormalized_odd$x[,1], pca_FW_meanNormalized_odd$x[,2], labels = norm_FW_Log2_odd$Samples)
+legend("topright", legend = levels(factor(norm_FW_Log2_odd$replicates)), pch = 16, 
+       col = colors[3:5][1:length(levels(factor(norm_FW_Log2_odd$replicates)))], y.intersp = 0.7)
+
+```
+
+PCA of just the TBI samples that have been normalized with averaged TBI and Control time zero.
+```{r, echo=FALSE}
+
+# PCA of the samples normalized to combine TBI and Ctrl time 0. PCA is looking at Even samples or control samples
+sample.colors = as.numeric(factor(norm_FW_Log2_even$replicates))
+par(mar=c(6.5, 7.5, 4.5, 1))
+plot(pca_FW_meanNormalized_even$x, pch = 19, cex = 2,
+     col = colors[3:5][sample.colors], 
+     main = "Principle Component Analysis\n Brain TBI Normalized to Mean Protein Intensity\n TBI Samples on Food & Water", 
+     ylim = c(-20, 20), xlim = c(-20, 25), 
+     xlab = "PC1 27.87%", ylab ="PC2 16.24%")
+text(pca_FW_meanNormalized_even$x[,1], pca_FW_meanNormalized_even$x[,2], labels = norm_FW_Log2_even$Samples)
+legend("topright", legend = levels(factor(norm_FW_Log2_even$replicates)), pch = 16, 
+       col = colors[3:5][1:length(levels(factor(norm_FW_Log2_even$replicates)))], y.intersp = 0.7)
+
+
+```
+
+
+#### Normalizing to average TIC and look at Z-score
+
+Normalize to Average TIC
+
+```{r normalize_TIC, echo=FALSE}
+t_LFQ_FW_ordered_LOG2$TIC <- apply(t_LFQ_FW_ordered_LOG2[,-c(1:5)],1, sum)
+
+t_LFQ_FW_ordered_LOG2_odd <- t_LFQ_FW_ordered_LOG2[which(t_LFQ_FW_ordered_LOG2$Samples %in% odd),]
+t_LFQ_FW_ordered_LOG2_even <- t_LFQ_FW_ordered_LOG2[which(t_LFQ_FW_ordered_LOG2$Samples %in% even),]
+
+# Take non-transformed LFQ for FW samples and sum all rows to get summed TIC by sample
+t_LFQ_FW_ordered <- 2^(t_LFQ_FW_ordered_LOG2[,-c(1:5,4956)])
 t_LFQ_FW_ordered$TIC <- apply(t_LFQ_FW_ordered,1,sum)
+# Bind the meta data for the first 57 samples, these are the FW samples
 t_LFQ_FW_ordered <- cbind(brain_FWW_meta[1:57,],t_LFQ_FW_ordered)
 
+# Separate samples based on odd(Controls) and even(TBI)
 t_LFQ_FW_ordered_odd <- t_LFQ_FW_ordered[which(t_LFQ_FW_ordered$Samples %in% odd),]
 t_LFQ_FW_ordered_even <- t_LFQ_FW_ordered[which(t_LFQ_FW_ordered$Samples %in% even),]
 
+# Create new dataframe objects for normalization
 new_FW_odd <- t_LFQ_FW_ordered_odd
 new_FW_even <- t_LFQ_FW_ordered_even
 
-average_TIC <- aggregate(t_LFQ_FW_ordered$TIC,
-                                list(t_LFQ_FW_ordered_LOG2$Samples), mean)
-average_TIC$stdev <- aggregate(t_LFQ_FW_ordered$TIC,
-                                list(t_LFQ_FW_ordered_LOG2$Samples), sd)
+new_FW_odd_zscore <- t_LFQ_FW_ordered_odd
+new_FW_even_zscore <- t_LFQ_FW_ordered_even
+
+new_FW_odd_Log2_zscore <- t_LFQ_FW_ordered_LOG2_odd
+new_FW_even_Log2_zscore <- t_LFQ_FW_ordered_LOG2_even
+
+# Average all replicates and calculate the average intensity
+average_TIC <- aggregate(t_LFQ_FW_ordered$TIC, list(t_LFQ_FW_ordered$Samples), mean)
+average_TIC_LOG2 <- aggregate(t_LFQ_FW_ordered_LOG2$TIC, list(t_LFQ_FW_ordered_LOG2$Samples), mean)
+
+# Add the standard deviation information
+average_TIC$stdev <- aggregate(t_LFQ_FW_ordered$TIC,list(t_LFQ_FW_ordered$Samples), sd)
+average_TIC_LOG2$stdev <- aggregate(t_LFQ_FW_ordered_LOG2$TIC,list(t_LFQ_FW_ordered_LOG2$Samples), sd)
 
 
-# Normalization for-loop for odd or Control samples using control time 0
-for(j in 1:3) {
+ average_TIC$Log2Average <- log2(average_TIC$x)
+ average_TIC$stdev$Log2Stdev <- log2(average_TIC$stdev$x)
 
-  for (i in 1:nrow(t_LFQ_FW_ordered_odd)) {
-    #print(paste0("j = ", j))
-    #print(paste0("i = ",i))
-      
-    if(t_LFQ_FW_ordered_odd[i,5] == paste0("n",j)){
-      Mj = j
-      average_row <- as.numeric(t_LFQ_FW_ordered_odd$Samples[i])
-      #print(paste0("average_row = ", average_row))
-      new_FW_odd[i,-c(1:5)] <- (t_LFQ_FW_ordered_odd[i,-c(1:5)] / t_LFQ_FW_ordered_odd$TIC[i]) * average_TIC[1,2]
-    }
+# Normalization for-loop for odd or Control samples using control time zero
+  for (i in 6:ncol(t_LFQ_FW_ordered_odd)) {
+      new_FW_odd[,i] <- (t_LFQ_FW_ordered_odd[,i] / t_LFQ_FW_ordered_odd$TIC) * average_TIC[1,2]
   }
+
+
+# Normalization for even or TBI samples using TBI time zero
+  for (i in 6:ncol(t_LFQ_FW_ordered_even)) {
+      new_FW_even[,i] <- (t_LFQ_FW_ordered_even[,i] / t_LFQ_FW_ordered_even$TIC) * average_TIC[2,2]
+  }
+
+# Z score using averaged replicate TIC and replicate stdev for odd samples
+for(j in 1:nrow(average_TIC)) {
+ #print(paste("j = ", j))
+  
+   for (i in 1:nrow(t_LFQ_FW_ordered_odd)) {
+     #print(paste("i = ", i))
+
+      if(t_LFQ_FW_ordered_odd[i,1] == average_TIC[j,1]){
+      
+      new_FW_odd_zscore[i, -c(1:5)] <- (t_LFQ_FW_ordered_odd[i,-c(1:5)] - average_TIC$x[j]) * 1/average_TIC$stdev[j,2] }
+    }
+}
+
+# Z score using averaged replicate TIC and replicate stdev for even samples
+for(j in 1:nrow(average_TIC)) {
+ #print(paste("j = ", j))
+  
+   for (i in 1:nrow(t_LFQ_FW_ordered_even)) {
+     #print(paste("i = ", i))
+
+      if(t_LFQ_FW_ordered_even[i,1] == average_TIC[j,1]){
+      
+      new_FW_even_zscore[i, -c(1:5)] <- (t_LFQ_FW_ordered_even[i,-c(1:5)] - average_TIC$x[j])/average_TIC$stdev[j,2] }
+
+    }
 }
 
 
+for(j in 1:nrow(average_TIC_LOG2)) {
+ #print(paste("j = ", j))
+  
+   for (i in 1:nrow(t_LFQ_FW_ordered_LOG2_odd)) {
+     #print(paste("i = ", i))
 
-pca_FW_TIC <- prcomp(log2(new_FW_odd[,-c(1:5)])) #new_FW_odd needs to be updated
+      if(t_LFQ_FW_ordered_LOG2_odd[i,1] == average_TIC_LOG2[j,1]){
+      
+      new_FW_odd_Log2_zscore[i, -c(1:5)] <- (t_LFQ_FW_ordered_LOG2_odd[i,-c(1:5)] - average_TIC_LOG2$x[j]) /average_TIC_LOG2$stdev[j,2] }
+    }
+}
 
-pca_FW_TIC_taverage <- prcomp(log2(new_FW_odd[,-c(1:5)]))
+ 
+ for(j in 1:nrow(average_TIC_LOG2)) {
+ #print(paste("j = ", j))
+  
+   for (i in 1:nrow(t_LFQ_FW_ordered_LOG2_even)) {
+     #print(paste("i = ", i))
+
+      if(t_LFQ_FW_ordered_LOG2_even[i,1] == average_TIC_LOG2[j,1]){
+      
+      new_FW_even_Log2_zscore[i, -c(1:5)] <- (t_LFQ_FW_ordered_LOG2_even[i,-c(1:5)] - average_TIC_LOG2$x[j]) /average_TIC_LOG2$stdev[j,2] }
+    }
+} 
+ 
+pca_FW_odd_zscore_log2 <- prcomp(new_FW_odd_Log2_zscore[,-c(1:5,4956)])
+
+pca_FW_even_zscore_log2 <- prcomp(new_FW_even_Log2_zscore[,-c(1:5,4956)])
+
+pca_FW_TIC_odd <- prcomp(log2(new_FW_odd[,-c(1:5,4956)])) #new_FW_odd needs to be updated
+
+pca_FW_TIC_even <- prcomp(log2(new_FW_even[,-c(1:5, 4956)]))
 
 new_FW_odd$TIC <- apply(new_FW_odd[,-c(1:5)],1,sum)
+
+
 
 ```
 
 
 ```{r, echo=FALSE}
 sample.colors = as.numeric(factor(new_FW_odd$replicates))
-plot(pca_FW_TIC_taverage$x, pch = 19, cex = 2,
+par(mar=c(6.5, 7.5, 4.5, 1))
+plot(pca_FW_TIC_odd$x, pch = 19, cex = 2,
      col = colors[3:5][sample.colors], 
-     main = "Principle Component Analysis\n Brain TBI Normalized to TIC time averaged \n Control Samples on Food & Water", 
+     main = "Principle Component Analysis\n Brain TBI Normalized to sample TIC \n Control Samples on Food & Water", 
      ylim = c(-20, 20), xlim = c(-20, 25), 
-     xlab = "PC1 16.13%", ylab ="PC2 13.18%")
-text(pca_FW_TIC_taverage$x[,1], pca_FW_TIC_taverage$x[,2], labels = new_FW_odd$Samples)
+     xlab = "PC1 26.35%", ylab ="PC2 11.92%")
+text(pca_FW_TIC_odd$x[,1], pca_FW_TIC_odd$x[,2], labels = new_FW_odd$Samples)
 legend("topright", legend = levels(factor(new_FW_odd$replicates)), pch = 16, 
        col = colors[3:5][1:length(levels(factor(new_FW_odd$replicates)))], y.intersp = 0.7)
 
+plot(new_FW_odd$TIC, type = 'n',  main = "Summed TIC (non-transformed)", sub = "Control Brain Samples on FW", ylab = "TIC", xlab = "Sample Index")
+text(new_FW_odd$TIC, labels = new_FW_odd$Samples)
+
+sample.colors = as.numeric(factor(new_FW_even$replicates))
+par(mar=c(6.5, 7.5, 4.5, 1))
+plot(pca_FW_TIC_even$x, pch = 19, cex = 2,
+     col = colors[3:5][sample.colors], 
+     main = "Principle Component Analysis\n Brain TBI Normalized to sample TIC \n Control Samples on Food & Water", 
+     ylim = c(-20, 20), xlim = c(-20, 25), 
+     xlab = "PC1 26.92%", ylab ="PC2 12.57%")
+text(pca_FW_TIC_even$x[,1], pca_FW_TIC_even$x[,2], labels = new_FW_even$Samples)
+legend("topright", legend = levels(factor(new_FW_even$replicates)), pch = 16, 
+       col = colors[3:5][1:length(levels(factor(new_FW_even$replicates)))], y.intersp = 0.7)
+
+plot(new_FW_even$TIC, type = 'n',  main = "Summed TIC (non-transformed)", sub = "TBI Brain Samples on FW", ylab = "TIC", xlab = "Sample Index")
+text(new_FW_even$TIC, labels = new_FW_even$Samples)
+
+sample.colors = as.numeric(factor(new_FW_odd_Log2_zscore$replicates))
+par(mar=c(6.5, 7.5, 4.5, 1))
+plot(pca_FW_odd_zscore_log2$x, pch = 19, cex = 2,
+     col = colors[3:5][sample.colors], 
+     main = "Principle Component Analysis\n Brain TBI Z score Normlized \n Control Samples on Food & Water", 
+     #ylim = c(-20, 20), xlim = c(-20, 25), 
+     xlab = "PC1 100 % ???", ylab ="PC2 0%")
+text(pca_FW_odd_zscore_log2$x[,1], pca_FW_odd_zscore_log2$x[,2], labels = new_FW_odd_Log2_zscore$Samples)
+legend("topright", legend = levels(factor(new_FW_odd_Log2_zscore$replicates)), pch = 16, 
+       col = colors[3:5][1:length(levels(factor(new_FW_odd_Log2_zscore$replicates)))], y.intersp = 0.7)
+
+
+plot(new_FW_odd_Log2_zscore$TIC, type = 'n',  main = "Z-score", sub = "Control Brain Samples on FW", ylab = "TIC", xlab = "Sample Index")
+text(new_FW_odd_Log2_zscore$TIC, labels = new_FW_odd_Log2_zscore$Samples)
+
+sample.colors = as.numeric(factor(new_FW_even_Log2_zscore$replicates))
+par(mar=c(6.5, 7.5, 4.5, 1))
+plot(pca_FW_even_zscore_log2$x, pch = 19, cex = 2,
+     col = colors[3:5][sample.colors], 
+     main = "Principle Component Analysis\n Brain TBI Z-score Normalized \n TBI Samples on Food & Water", 
+     #ylim = c(-20, 20), xlim = c(-20, 25), 
+     xlab = "PC1 100 % ???%", ylab ="PC2 0%")
+text(pca_FW_even_zscore_log2$x[,1], pca_FW_even_zscore_log2$x[,2], labels = new_FW_even_Log2_zscore$Samples)
+legend("topright", legend = levels(factor(new_FW_even_Log2_zscore$replicates)), pch = 16, 
+       col = colors[3:5][1:length(levels(factor(new_FW_even_Log2_zscore$replicates)))], y.intersp = 0.7)
+
+plot(new_FW_even_Log2_zscore$TIC, type = 'n',  main = "Z-score", sub = "Control Brain Samples on FW", ylab = "TIC", xlab = "Sample Index")
+text(new_FW_even_Log2_zscore$TIC, labels = new_FW_even_Log2_zscore$Samples)
 
 ```
 
-
+#### Coefficient of Variation
 
 ```{r cv_brains, echo=FALSE}
 
@@ -735,6 +946,8 @@ colnames(cv_time.point.data.frame) <- rownames(cv_tim.point_removeLog2)
 
 
 ```
+
+Remove any proteins with greater than 100 CV
 
 ```{r CV_timePoint, include=TRUE}
 
@@ -773,5 +986,42 @@ which(colnames(t_LFQ_FW_ordered) == "TIC")
 t_LFQ_FW_ordered$Average <- apply(t_LFQ_FW_ordered[,-c(1:5,which(colnames(t_LFQ_FW_ordered) == "TIC"))],1,mean)
 t_LFQ_FW_ordered$StdDev <- apply(t_LFQ_FW_ordered[,-c(1:5,which(colnames(t_LFQ_FW_ordered) == "TIC"))],1,sd)
 t_LFQ_FW_ordered$CV <- t_LFQ_FW_ordered$StdDev/t_LFQ_FW_ordered$Average*100
+
+
 ```
 
+```{r CV_lessThan_100, include=TRUE}
+t_LFQ_FW_ordered_lessThan100CV <- t_LFQ_FW_ordered[,-which(names(t_LFQ_FW_ordered)%in% cv_100_protein.id)]
+
+pca_FW_lessThan100CV <- prcomp(log2(t_LFQ_FW_ordered_lessThan100CV[,-c(1:5,ncol(t_LFQ_FW_ordered_lessThan100CV))]))
+
+proteins <- names(pca_FW_lessThan100CV$rotation[,1][which(pca_FW_lessThan100CV$rotation[,1] < -0.045)])
+
+cv_less100_meta <- proteinGroups_dros_Brain_FWW[which(proteinGroups_dros_Brain_FWW$id == "4849"),]
+```
+
+```{r, echo=FALSE}
+sample.colors = as.numeric(factor(t_LFQ_FW_ordered_lessThan100CV$replicates))
+par(mar=c(6.5, 7.5, 4.5, 1))
+plot(pca_FW_lessThan100CV$x, pch = 19, cex = 2,
+     col = colors[3:5][sample.colors], 
+     main = "Principle Component Analysis\n Brain TBI Less than 100% CV\n Control Samples on Food & Water", 
+     ylim = c(-20, 20), xlim = c(-20, 25), 
+     xlab = "PC1 11.14%", ylab ="PC2 10.59%")
+text(pca_FW_lessThan100CV$x[,1], pca_FW_lessThan100CV$x[,2], labels = t_LFQ_FW_ordered_lessThan100CV$Samples)
+legend("topright", legend = levels(factor(t_LFQ_FW_ordered_lessThan100CV$replicates)), pch = 16, 
+       col = colors[3:5][1:length(levels(factor(t_LFQ_FW_ordered_lessThan100CV$replicates)))], y.intersp = 0.7)
+
+# Loadings plot of samples with proteins less than 100% CV
+par(mar=c(6.5, 7.5, 4.5, 1))
+plot(pca_FW_lessThan100CV$rotation, pch = 19, cex = 2,
+     #col = colors[3:5][sample.colors], 
+     main = "Loadings Plot\n Brain TBI Less than 100% CV\n Control Samples on Food & Water") 
+     #ylim = c(-20, 20), xlim = c(-20, 25), 
+     #xlab = "PC1 25.43%", ylab ="PC2 9.13%")
+text(pca_FW_lessThan100CV$rotation[,1][which(pca_FW_lessThan100CV$rotation[,1] < -0.045)], pca_FW_lessThan100CV$rotation[,2][which(pca_FW_lessThan100CV$rotation[,1] < -0.045)], 
+     col = "red", labels = names(pca_FW_lessThan100CV$rotation[,1][which(pca_FW_lessThan100CV$rotation[,1] < -0.045)]))
+text(pca_FW_lessThan100CV$rotation[,1][which(pca_FW_lessThan100CV$rotation[,1] > 0.045)], pca_FW_lessThan100CV$rotation[,2][which(pca_FW_lessThan100CV$rotation[,1] > 0.045)], 
+     col = "red", labels = names(pca_FW_lessThan100CV$rotation[,1][which(pca_FW_lessThan100CV$rotation[,1] > 0.045)]))
+
+```
