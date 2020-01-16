@@ -12,9 +12,9 @@ opts_knit$set(root.dir = "G:/Projects/Proteomics/DorsophilaHead_Experiment/")
 knitr::opts_chunk$set(root.dir = "G:/Projects/Proteomics/DorsophilaHead_Experiment/", warning = FALSE, message = FALSE)
 ```
 
-This is an R Markdown Document describing the proteomics data collected for the Drosophila Traumatic Brain Injury Project in collaboration with Professor Wassarman and Becky Steinbrech. The samples analyzed were derived from heads  of Drosophilla melanogaster that were fed either Food and Water or ONLY Water. There are  time points with a control and a traumatic brain injury (TBI) sample at each time point for the first 24 hours. 
+This is an R Markdown Document describing the proteomics data collected for the Drosophila Traumatic Brain Injury Project in collaboration with Professor Wassarman and Becky Steinbrech. The samples analyzed were derived from heads  of Drosophila melanogaster that were fed either Food and Water or ONLY Water. There are  time points with a control and a traumatic brain injury (TBI) sample at each time point for the first 24 hours. 
 
-Proteomics data was collected August 11, 2019 and searched on September 1, 2019. The initial analysis was performed September 9, 2019.
+Proteomics data was collected on August 11, 2019, and searched on September 1, 2019. The initial analysis was performed on September 9, 2019.
 
 
 
@@ -613,7 +613,7 @@ for(j in 1:3) {
 
 
 # row bind the normalization done using separate time zero and then perform PCA analysis 
-mean_normaized_FW_byProtein_sepTBIandCTRL <- rbind(norm_FW_Log2_odd,norm_FW_Log2_even)
+mean_normalized_FW_byProtein_sepTBIandCTRL <- rbind(norm_FW_Log2_odd,norm_FW_Log2_even)
 pca_FW_meanNormalized <- prcomp(mean_normaized_FW_byProtein_sepTBIandCTRL[,-c(1:5)])
 
 # Normalized Control Samples with time zero control
@@ -629,7 +629,7 @@ pca_FW_meanNormalized_combined <- prcomp(norm_FW_Log2[,-c(1:5)])
 
 PCA plot of samples that were normalized by the sample type. An average time zero for Control and one for TBI was applied to the samples matching. After normalization all samples were analyzed by PCA. Note this still exhibits separation based on replicate.
 ```{r, echo=FALSE}
-sample.colors = as.numeric(factor(mean_normaized_FW_byProtein_sepTBIandCTRL$replicates))
+sample.colors = as.numeric(factor(mean_normalized_FW_byProtein_sepTBIandCTRL$replicates))
 par(mar=c(6.5, 7.5, 4.5, 1))
 plot(pca_FW_meanNormalized$x, pch = 19, cex = 2,
      col = colors[3:5][sample.colors], 
@@ -641,24 +641,66 @@ text(pca_FW_meanNormalized$x[,1], pca_FW_meanNormalized$x[,2],
 legend("topright", 
        legend = levels(factor(mean_normaized_FW_byProtein_sepTBIandCTRL$replicates)), 
        pch = 16, 
-       col = colors[3:5][1:length(levels(factor(mean_normaized_FW_byProtein_sepTBIandCTRL$replicates)))], 
+       col = colors[3:5][1:length(levels(factor(mean_normalized_FW_byProtein_sepTBIandCTRL$replicates)))], 
        y.intersp = 0.7)
 
-# sample.colors = as.numeric(factor(mean_normaized_FW_byProtein_sepTBIandCTRL$hour))
-# par(mar=c(6.5, 7.5, 4.5, 1))
-# plot(pca_FW_meanNormalized$x, pch = 19, cex = 2,
-#      col = colors[sample.colors], 
-#      main = "Principle Component Analysis\n Brain TBI Normalized to Mean Protein Intensity\n on Food & Water", 
-#      ylim = c(-20, 20), xlim = c(-20, 25), 
-#      xlab = "PC1 16.18%", ylab ="PC2 13.99%")
-# text(pca_FW_meanNormalized$x[,1], pca_FW_meanNormalized$x[,2], 
-#      labels = mean_normaized_FW_byProtein_sepTBIandCTRL$Samples)
-# legend("topright", 
-#        legend = levels(factor(mean_normaized_FW_byProtein_sepTBIandCTRL$replicates)), 
-#        pch = 16, 
-#        col = colors[1:length(levels(factor(mean_normaized_FW_byProtein_sepTBIandCTRL$replicates)))], 
-#        y.intersp = 0.7)
+ sample.colors = as.numeric(factor(mean_normalized_FW_byProtein_sepTBIandCTRL$Sample_Type))
+ par(mar=c(6.5, 7.5, 4.5, 1))
+ plot(pca_FW_meanNormalized$x, pch = 19, cex = 2,
+     col = colors[sample.colors],
+     main = "Principle Component Analysis\n Brain TBI Normalized to Mean Protein Intensity\n on Food & Water",
+     ylim = c(-20, 20), xlim = c(-20, 25),
+     xlab = "PC1 16.18%", ylab ="PC2 13.99%")
+text(pca_FW_meanNormalized$x[,1], pca_FW_meanNormalized$x[,2],
+     labels = mean_normaized_FW_byProtein_sepTBIandCTRL$Samples)
+legend("topright",
+       legend = levels(factor(mean_normaized_FW_byProtein_sepTBIandCTRL$Sample_Type)),
+       pch = 16,
+       col = colors[1:length(levels(factor(mean_normalized_FW_byProtein_sepTBIandCTRL$Sample_Type)))],
+       y.intersp = 0.7)
 
+ sample.colors = as.numeric(factor(mean_normalized_FW_byProtein_sepTBIandCTRL$Sample_Type))
+ par(mar=c(6.5, 7.5, 4.5, 1))
+ plot(pca_FW_meanNormalized$x, pch = 19, cex = 2,
+     col = colors[sample.colors],
+     main = "Principle Component Analysis\n Brain TBI Normalized to Mean Protein Intensity\n on Food & Water",
+     ylim = c(-20, 20), xlim = c(-20, 25),
+     xlab = "PC1 16.18%", ylab ="PC2 13.99%")
+text(pca_FW_meanNormalized$x[,1], pca_FW_meanNormalized$x[,2],
+     labels = mean_normaized_FW_byProtein_sepTBIandCTRL$Samples)
+legend("topright",
+       legend = levels(factor(mean_normaized_FW_byProtein_sepTBIandCTRL$Sample_Type)),
+       pch = 16,
+       col = colors[1:length(levels(factor(mean_normalized_FW_byProtein_sepTBIandCTRL$Sample_Type)))],
+       y.intersp = 0.7)
+
+ sample.colors = as.numeric(factor(mean_normalized_FW_byProtein_sepTBIandCTRL$replicates))
+ par(mar=c(6.5, 7.5, 4.5, 1))
+ plot(pca_FW_meanNormalized$x[,1], pca_FW_meanNormalized$x[,3], pch = 19, cex = 2,
+     col = colors[sample.colors],
+     main = "Principle Component Analysis\n Brain TBI Normalized to Mean Protein Intensity\n on Food & Water",
+     ylim = c(-20, 20), xlim = c(-20, 25),
+     xlab = "PC1 16.18%", ylab ="PC3 11.62%")
+text(pca_FW_meanNormalized$x[,1], pca_FW_meanNormalized$x[,3],
+     labels = mean_normaized_FW_byProtein_sepTBIandCTRL$Samples)
+legend("topright",
+       legend = levels(factor(mean_normaized_FW_byProtein_sepTBIandCTRL$replicates)),
+       pch = 16,
+       col = colors[1:length(levels(factor(mean_normalized_FW_byProtein_sepTBIandCTRL$replicates)))],
+       y.intersp = 0.7)
+
+```
+
+
+```{r, echo=FALSE}
+# Loadings plot of samples with proteins less than 100% CV
+par(mar=c(6.5, 7.5, 4.5, 1))
+plot(pca_FW_meanNormalized$rotation, pch = 19, cex = 2,
+     main = "Loadings Plot\n Normalized to separate time zero \n Control and TBI Samples on Food & Water") 
+text(pca_FW_meanNormalized$rotation[,1][which(pca_FW_meanNormalized$rotation[,2] < -0.1)], pca_FW_meanNormalized$rotation[,2][which(pca_FW_meanNormalized$rotation[,2] < -0.1)], 
+     col = "red", labels = names(pca_FW_meanNormalized$rotation[,1][which(pca_FW_meanNormalized$rotation[,2] < -0.1)]))
+text(pca_FW_meanNormalized$rotation[,1][which(pca_FW_meanNormalized$rotation[,2] > 0.1)], pca_FW_meanNormalized$rotation[,2][which(pca_FW_meanNormalized$rotation[,2] > 0.1)], 
+     col = "red", labels = names(pca_FW_meanNormalized$rotation[,1][which(pca_FW_meanNormalized$rotation[,2] > 0.1)]))
 ```
 
 
