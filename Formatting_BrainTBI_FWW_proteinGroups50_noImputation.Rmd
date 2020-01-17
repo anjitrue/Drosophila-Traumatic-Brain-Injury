@@ -1,0 +1,141 @@
+---
+title: "Replicate_TBI_prepareImputation"
+author: "Anji Trujillo - Professor Coon"
+date: "1/16/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r setup, include=FALSE}
+require(knitr)
+opts_knit$set(root.dir = "G:/Projects/Proteomics/DorsophilaHead_Experiment/")
+knitr::opts_chunk$set(root.dir = "G:/Projects/Proteomics/DorsophilaHead_Experiment/", warning = FALSE, message = FALSE)
+```
+
+This is an R Markdown Document describing the proteomics data collected for the Drosophila Traumatic Brain Injury Project in collaboration with Professor Wassarman and Becky Katzenberger. The samples analyzed were derived from heads of Drosophila melanogaster that were fed either Food and Water or ONLY Water for 24 hours. Each time points contains a paired control and matching traumatic brain injury (TBI) sample. 
+
+The Proteomics data was collected August 11, 2019. The initial analysis was performed September 9, 2019 on MaxQuant and searched as:  
+
+* Drosophila (TBI + Control) on Food and Water AND Water only  
+
+
+```{r install_packages, echo=FALSE}
+library(readr)
+library(plyr)
+library(dplyr)
+library(pheatmap)
+library(RColorBrewer)
+library(viridis)
+library(pcaMethods)
+library(ggplot2)
+library(devtools)
+library(e1071)
+library(dplyr)
+library(Mfuzz)
+library(cluster)
+library(yaml)
+library(Rcpp)
+library(pls)
+library(hexbin)
+```
+
+The data exploration and analysis was performed using R. A series of filters have been applied to clean the data. The following were removed: contaminants, reverse sequences, and only identified by site. Then the dataframe was subset using a 50% filter, removing protein groups that have over half of the values missing, the output will be used for imputation purposes.
+
+```{r functions, echo=FALSE}
+
+subsetLFQ <- function(q){
+  y <- q[,c("Protein.IDs", "id","Gene.names")] 
+  z <- q[,grep("LFQ.intensity",names(q))]
+  z[z == 0] <- NA
+  x <- bind_cols(y,z)
+  #how many missing values in protein groups dataframe
+  print(paste("Number of missing measurements", sum(is.na(x)), " out of ", ncol(x)*nrow(x) , " equates to ", (sum(is.na(x))/(ncol(x)*nrow(x))*100) , "% of data missing from complete data set"))
+  #x <- x[complete.cases(x),]
+  return(x)
+ } 
+ 
+remove.features.50percentcuttoff <- function (x) {
+  features.missing = rowMeans(is.na(x)) 
+  print(paste0("Number of protein groups that have over 50% missing measurements: ",sum(features.missing > 0.50))) 
+  features.missing.50more = rownames(x)[features.missing > 0.50] 
+  
+  keep.features = which(features.missing <= 0.50) 
+  print(paste0("Protein groups that pass the 50% filteration: ", length(keep.features)))
+  names(keep.features) = keep.features 
+  
+  remove.features = which(features.missing > 0.50)
+  print(paste0("Number of protein groups removed from dataset: ", length(remove.features)))
+  names(remove.features) = remove.features
+  
+  filtered = x[-which(rownames(x) %in% remove.features),]
+  return(filtered)
+}
+
+
+```
+
+
+#### Load data: Drosophila (TBI + Control) on 1. Food and Water AND 2. Water only 
+```{r load_data, echo=FALSE}
+# Load data containing a subset of columns for the FWW dataset
+proteinGroups_dros_Brain_FWW <- read.csv("G:/Projects/Proteomics/DorsophilaHead_Experiment/txt_Food_Water_Water_Together/proteinGroups_Food_Water_Water_Together.csv", header = TRUE, sep = ",", stringsAsFactors = FALSE)
+
+# Load data containing more information on the scans and quality of identifications
+# proteinGroups_dros_Brain_FWW_extended <- read.csv("G:/Projects/Proteomics/DorsophilaHead_Experiment/txt_Food_Water_Water_Together/proteinGroups_Food_Water_Water_Together_20191018.csv", header = TRUE, sep = ",", stringsAsFactors = FALSE)
+
+cat(paste0("Number of protein groups in Brain Data before any filtering of missing measurements: ", nrow(proteinGroups_dros_Brain_FWW)))
+
+# cat(paste0("Number of protein groups in Brain Data before any filtering of missing measurements: ", nrow(proteinGroups_dros_Brain_FWW_extended)))
+proteinGroups_dros_Brain_FWW <- subsetLFQ(proteinGroups_dros_Brain_FWW) 
+
+proteinGroups50_dros_Brain_FWW <- remove.features.50percentcuttoff(proteinGroups_dros_Brain_FWW)
+proteinGroups50_dros_Brain_FWW[is.na(proteinGroups50_dros_Brain_FWW)] <- 0
+
+print(paste("Number of complete proteins: ", nrow(proteinGroups50_dros_Brain_FWW))) 
+
+
+
+```
+
+A few notes:
+
+* FWW refers to data set that includes samples on Food and Water as well as samples on Water only
+* FW refers to a subset of the data that includes samples on Food and water
+* FWW and FW datasets are Log2 transformed. 
+* Note for simplification MaxQuant identifiers for protein groups will be used in replacement of Uniprot ID or gene name.
+
+```{r format_brains, echo=FALSE}
+#log2 transform and subset only complete cases
+# LFQ50_BrainsFWW_LOG2 <- log2(as.matrix(proteinGroups50_dros_Brain_FWW[,grep("LFQ.intensity",names(proteinGroups50_dros_Brain_FWW))[1]:ncol(proteinGroups50_dros_Brain_FWW)]))
+
+#set row names to match protein group identifer number
+rownames(proteinGroups50_dros_Brain_FWW) <- proteinGroups50_dros_Brain_FWW$id
+
+#substitute blank before intensity.
+samples_replicates <- sub(".*intensity.", "",colnames(proteinGroups50_dros_Brain_FWW[,-c(1:3)]))
+
+#create a data frame with sample and replicate information      
+df.sample.names <- data.frame(samples = samples_replicates, replicates = sub(".*_", "", samples_replicates), number = as.numeric(sub("_.*", "", samples_replicates)))
+
+#order the sample numbers in ascending order
+df.sample.names <- df.sample.names[order(df.sample.names$number),]
+
+sample.order <- as.numeric(rownames(df.sample.names))
+
+#replace colnames
+#order samples in ascending order
+proteinGroups50_dros_Brain_ordered <- proteinGroups50_dros_Brain_FWW[,-c(1:3)]
+proteinGroups50_dros_Brain_ordered <- proteinGroups50_dros_Brain_ordered[,sample.order]
+colnames(proteinGroups50_dros_Brain_ordered) <- df.sample.names$samples
+
+proteinGroups50_dros_Brain_ordered <- cbind(proteinGroups50_dros_Brain_FWW[,c(1:3)], proteinGroups50_dros_Brain_ordered)
+
+write.csv(proteinGroups50_dros_Brain_ordered, "G:/Projects/Proteomics/DorsophilaHead_Experiment/Routput/Brain/FWW_Brain_ProteinGroups50_noimputation.csv", row.names = FALSE)
+
+```
+
+
