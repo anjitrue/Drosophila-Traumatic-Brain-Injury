@@ -12,18 +12,12 @@ opts_knit$set(root.dir = "G:/Projects/Proteomics/DorsophilaHead_Experiment/")
 knitr::opts_chunk$set(root.dir = "G:/Projects/Proteomics/DorsophilaHead_Experiment/", warning = FALSE, message = FALSE)
 ```
 
-This is an R Markdown Document describing the proteomics data collected for the Drosophila Traumatic Brain Injury Project in collaboration with Professor Wassarman and Becky Steinbrech. The samples analyzed were derived from heads  of Drosophilla melanogaster that were fed either Food and Water or ONLY Water. There are  time points with a control and a traumatic brain injury (TBI) sample at each time point for the first 24 hours. 
+This is an R Markdown Document describing the proteomics data collected for the Drosophila Traumatic Brain Injury Project in collaboration with Professor Wassarman and Becky Katzenberger. The samples analyzed were derived from heads of Drosophila melanogaster that were fed either Food and Water or ONLY Water for 24 hours. Each time points contains a paired control and matching traumatic brain injury (TBI) sample. 
 
-Proteomics data was collected August 11, 2019 and searched on September 1, 2019. The initial analysis was performed September 9, 2019.
+The Proteomics data was collected August 11, 2019. The initial analysis was performed September 9, 2019 on MaxQuant and searched as:  
 
-
-
-The head hemolymph data was searched either as  
-
-* Drosophila (TBI + Control) on Food and Water  
-* Drosophila (TBI + Control) on Water only  
 * Drosophila (TBI + Control) on Food and Water AND Water only  
- 
+
 
 ```{r install_packages, echo=FALSE}
 library(readr)
@@ -41,16 +35,11 @@ library(Mfuzz)
 library(cluster)
 library(yaml)
 library(Rcpp)
+library(pls)
+library(hexbin)
 ```
 
-The data analysis was performed using R. The following functions were written to manipulate the data. Before loading data I manually removed contaminants, reverse sequences, and only identified by site. The dataframe will be subset to utilize Uniprot protein ID's, number identifier provided by MaxQuant, and Gene Name for each protein group.
-
-
-A following of functions have been written to 
-
-* Remove protein groups that contain less than 50% of measurements across samples  
-* Subset LFQ values to protein groups that contain complete measurements across all samples  
-* Plotting Standard Deviation of Proteins
+The data exploration and analysis was performed using R. A series of filters have been applied to clean the data. The following were removed: contaminants, reverse sequences, and only identified by site. Then the dataframe was subset using a 50% filter, removing protein groups that have over half of the values missing, the output will be used for imputation purposes. The following utilized protein groups that contain complete measurements across all samples. 
 
 ```{r functions, echo=FALSE}
 
@@ -159,8 +148,12 @@ print(paste("Number of complete proteins: ", nrow(proteinGroups_dros_Brain_FWW))
 
 ```
 
+A few notes:
 
-FWW dataset is Log2 transformed for further exploration and analysis. Note for simplification MaxQuant identifiers for protein groups will be used in replacement of Uniprot ID or gene name.
+* FWW refers to data set that includes samples on Food and Water as well as samples on Water only
+* FW refers to a subset of the data that includes samples on Food and water
+* FWW and FW datasets are Log2 transformed. 
+* Note for simplification MaxQuant identifiers for protein groups will be used in replacement of Uniprot ID or gene name.
 
 ```{r format_brains, echo=FALSE}
 #log2 transform and subset only complete cases
@@ -188,39 +181,48 @@ colnames(LFQ_BrainsFWW_LOG2_complete) <- samples
 LFQ_FWW_Ordered_LOG2 <- LFQ_BrainsFWW_LOG2_complete[,order(as.numeric(as.character(colnames(LFQ_BrainsFWW_LOG2_complete))))]
 #create a new data frame that is not log2 transformed
 LFQ_FWW_Ordered <- 2^LFQ_FWW_Ordered_LOG2
+
+LFQ_FWW_Ordered_LOG2_uniqueName <- LFQ_FWW_Ordered_LOG2
+colnames(LFQ_FWW_Ordered_LOG2_uniqueName) <- df.sample.names$samples
+
 ```
 
-The summed TIC for complete case proteins is compared for each sample. Within each replicate time point, the summed TIC should have low variability. Looking at all the samples (both conditions, TBI and Controls) there is a large variablity in the TIC. 
+
 
 ```{r FWW_stats , echo=FALSE}
 #Food and Water Experiment
 LFQ_FW_Ordered_LOG2 <- LFQ_FWW_Ordered_LOG2[,1:57]
+LFQ_FW_Ordered_LOG2_uniqueName <- LFQ_FWW_Ordered_LOG2_uniqueName[,1:57]
 
 #Water ONLY Experiment
 LFQ_W_Ordered_LOG2 <- LFQ_FWW_Ordered_LOG2[,58:ncol(LFQ_FWW_Ordered_LOG2)]
+LFQ_W_Ordered_LOG2 <- LFQ_FWW_Ordered_LOG2_uniqueName[,58:ncol(LFQ_FWW_Ordered_LOG2_uniqueName)]
+
 
 #Sum up TIC of all samples for non-transformed and Log2 datasets that contain FWW samples
 col_sums <- apply(LFQ_FWW_Ordered, 2, sum)
 col_sums_log2 <- apply(LFQ_FWW_Ordered_LOG2,2,sum)
 
-plot(col_sums, type = 'n',  main = "Summed TIC (non-transformed)", sub = "Brain Samples on FW and W", ylab = "TIC", xlab = "Sample Index")
-text(col_sums, labels = colnames(LFQ_FWW_Ordered))
+ plot(col_sums, type = 'n',  main = "Summed TIC (non-transformed)", sub = "Brain Samples on FW and W", ylab = "TIC", xlab = "Sample Index")
+ text(col_sums, labels = colnames(LFQ_FWW_Ordered))
 
-# plot(col_sums_log2, type = 'n',  main = "Summed TIC (Log2 transformed)", sub = "Brain Samples on FW and W", ylab = "TIC", xlab = "Sample Index")
-# text(col_sums_log2, labels = colnames(LFQ_FWW_Ordered))
+ plot(col_sums_log2, type = 'n',  main = "Summed TIC (Log2 transformed)", sub = "Brain Samples on FW and W", ylab = "TIC", xlab = "Sample Index")
+ text(col_sums_log2, labels = colnames(LFQ_FWW_Ordered))
 
 #Sum up all proteins to determine TIC of all samples (column wise) for only FW samples [,1:57]
 col_sums_FW <- apply(LFQ_FWW_Ordered[,1:57],2,sum)
 col_sums_FW_Log2 <- apply(LFQ_FW_Ordered_LOG2,2,sum)
 
+# can be used, removed for Wassarman
 plot(col_sums_FW, type = 'n',  main = "Summed TIC (non-transformed)", sub = "Brain Samples on FW", ylab = "TIC", xlab = "Sample Index")
 text(col_sums_FW, labels = colnames(LFQ_FWW_Ordered[,1:57]))
 
 #Sum up all proteins to determine TIC of all samples (column wise) for only FW samples [,58:ncol(LFQ_FWW_Ordered)]
 col_sums_W <- apply(LFQ_FWW_Ordered[,58:ncol(LFQ_FWW_Ordered)],2,sum)
 
-plot(col_sums_W, type = 'n',  main = "Summed TIC (non-transformed)", sub = "Brain Samples on W", ylab = "TIC", xlab = "Sample Index")
-text(col_sums_W, labels = colnames(LFQ_FWW_Ordered[,58:ncol(LFQ_FWW_Ordered)]))
+# can be used, removed for Wassarman
+# plot(col_sums_W, type = 'n',  main = "Summed TIC (non-transformed)", sub = "Brain Samples on W", ylab = "TIC", xlab = "Sample Index")
+# text(col_sums_W, labels = colnames(LFQ_FWW_Ordered[,58:ncol(LFQ_FWW_Ordered)]))
 
 #rename the column names that have been sorted numerically
 even = seq(2,20,2)
@@ -237,6 +239,7 @@ brain_FWW_meta$hour <- c(rep("0", 6), rep("30 min",6), rep("1 hr",6), rep("2 hr"
 
 brain_FWW_meta$replicates <- sub("\\.\\d+$", "", df.sample.names$replicates)
 brain_FWW_meta$replicates <- gsub("[.]","",brain_FWW_meta$replicates)
+brain_FWW_meta$unique <- apply( brain_FWW_meta[ , c(1,5) ] , 1 , paste , collapse = "-" )
 #sub("(^[^.]+[.]+).*", "\\1", brain_FWW_meta$replicates)
 
 #print(brain_FWW_meta, quote = TRUE, row.names = FALSE)
@@ -262,41 +265,42 @@ colors <- c("#206F94", # teal
             "#E73C25", #red
             "#81143A", #dark pink
             "#ED237A") #hot pink)
-sample.colors = as.numeric(factor(brain_FWW_meta$Samples[1:57]))
-mycolors <- colorRampPalette(brewer.pal(12, "Set3"))(length(unique(sample.colors)))
-par(mar=c(6.5, 7.5, 1.5, 1), mgp=c(3.5, 0.8, 0), las=1)
-barplot(col_sums_FW, 
-        main = "Summed TIC (not-transformed)",  
-        sub = "Brain Samples on FW",
-        xaxt="n",
-        ylab = "TIC", 
-        xlab = "Sample Index", 
-        ylim = c(0,7e+12),
-        col = mycolors[sample.colors])
 
 sample.colors = as.numeric(factor(brain_FWW_meta$Samples[1:57]))
 mycolors <- colorRampPalette(brewer.pal(12, "Set3"))(length(unique(sample.colors)))
 par(mar=c(6.5, 7.5, 1.5, 1), mgp=c(3.5, 0.8, 0), las=1)
-barplot(col_sums_FW_Log2, 
-        main = "Summed TIC (Log2 transformed)",  
+barplot(col_sums_FW,
+        main = "Summed TIC (not-transformed)",
         sub = "Brain Samples on FW",
         xaxt="n",
-        ylab = "TIC", 
-        xlab = "Sample Index", 
+        ylab = "TIC",
+        xlab = "Sample Index",
+        ylim = c(0,7e+12),
+        col = mycolors[sample.colors])
+
+# The summed TIC for complete case proteins is compared for each sample. Within each replicate time point, the summed TIC should have low variability.
+
+sample.colors = as.numeric(factor(brain_FWW_meta$Samples[1:57]))
+mycolors <- colorRampPalette(brewer.pal(12, "Set3"))(length(unique(sample.colors)))
+par(mar=c(6.5, 7.5, 1.5, 1), mgp=c(3.5, 0.8, 0), las=1)
+barplot(col_sums_FW_Log2,
+        main = "Summed TIC (Log2 transformed)",
+        sub = "Brain Samples on FW",
+        xaxt="n",
+        ylab = "TIC",
+        xlab = "Sample Index",
         ylim = c(0,150000),
         col = mycolors[sample.colors])
 
 ```
 
 
-#### PCA plots of Brain TBI samples on Food and Water (FW) And Water (W)
+#### PCA plots of Brain TBI samples on Food and Water (FW)
 
 PCA plot of all TBI brain samples (FW and W) colored by diet condition. 
 
+PCA plot of Brain TBI samples that are on Food and Water provide a global view of the data. Each dot in the PCA is a sample where the color indicates the replicate number. Samples in sage green (replicate n1) were collected Aug 2018 and samples colored blue (replicate n3) and purple (replicate n2) were collected Aug 2019. 
 
-For this section I will be showing PCA plot of Brain TBI samples that are on Food and Water. Each dot in the PCA is a sample where the color indicates the replicate number. Samples in sage green (replicate n1) were collected Aug 2018 and samples colored blue (replicate n3) and purple (replicate n2) were collected Aug 2019. 
-
-#### Statistics (Average, Standard Deviation, and Coefficient of Variation)
 
 ```{r Average_replicates, echo=FALSE}
 
@@ -328,18 +332,35 @@ rownames(average_time.point_even) <- average_time.point_even[,1]
 
 ```
 
-#### Normalization using time zero. Comparing time zero for TBI, Control, and TBI and Control combined. 
-Due to high variability originating from each replicate (n1, n2, n3), normalizing out some of this variability will be important for further analysis. Time zero for the TBI sample is collection right after imposing traumatic brain injury. A control sample was also collected at time zero for each replicate, providing an averaged sample that can be used for normalizing a baseline.  
+```{r, echo=FALSE}
 
-The following normalization exploration will be done on Brain TBI samples that were on Food and Water.
+pca_FW <- prcomp(t(LFQ_FW_Ordered_LOG2))
+
+# PCA by replicate, shows batch affect by replicate
+sample.colors = as.numeric(factor(brain_FWW_meta$replicates[1:57]))
+plot(pca_FW$x[1:57,1:2], pch = 19, cex = 2,
+     col = colors[3:5][sample.colors], 
+     main = "Principle Component Analysis\n Brain TBI on Food & Water", 
+     ylim = c(-20, 20), xlim = c(-20, 20), 
+     xlab = "PC1 24.17%", ylab ="PC2 10.23%")
+#text(pca_FW$x[,1][1:57], pca_FW$x[,2][1:57], labels = colnames(LFQ_FWW_Ordered_LOG2)[1:57])
+legend("topright", legend = levels(factor(brain_FWW_meta$replicates[1:57])), pch = 16, 
+       col = colors[3:5][1:length(levels(factor(brain_FWW_meta$replicates[1:57])))], y.intersp = 0.7)
+```
+
+#### Normalization using time zero. 
+#### Comparing time zero for TBI and time zero for Control on Brain samples that were on Food and Water. 
+Due to high variability originating from each replicate (n1, n2, n3), normalization will be important for further analysis. Note, time zero samples are available and provide a baseline. In the TBI sample, time zero, was collecting right after imposing traumatic brain injury. A control sample was also collected at time zero for each replicate.  
+
+The following normalization will be done.
 ```{r normalize_time0, echo=FALSE}
 
 # Average of both Control and TBI time 0
-average_time.point_TBI_CTRL <- data.frame(colMeans(t_LFQ_FW_ordered_LOG2[1:6,6:ncol(t_LFQ_FW_ordered_LOG2)]))
+average_time.point_TBI_CTRL <- data.frame(colMeans(t_LFQ_FW_ordered_LOG2[1:6,7:ncol(t_LFQ_FW_ordered_LOG2)]))
 average_time.point_TBI_CTRL <- t(average_time.point_TBI_CTRL)
 
 # Add this average to the end of all the averages 
-average_time.point <- rbind(average_time.point[,-1],average_time.point_TBI_CTRL)
+average_time.point <- rbind(average_time.point[,-c(1:2)],average_time.point_TBI_CTRL)
 
 # create a new data frame for normalization
 norm_FW_Log2 <- t_LFQ_FW_ordered_LOG2
@@ -356,7 +377,7 @@ for(j in 1:3) {
     
       if(t_LFQ_FW_ordered_LOG2_odd[i,5] == paste0("n",j)){
       Mj = j
-      norm_FW_Log2_odd[i,-c(1:5)] <- t_LFQ_FW_ordered_LOG2_odd[i,-c(1:5)] - t_LFQ_FW_ordered_LOG2_odd[Mj,-c(1:5)] + average_time.point[1,]
+      norm_FW_Log2_odd[i,-c(1:6)] <- t_LFQ_FW_ordered_LOG2_odd[i,-c(1:6)] - t_LFQ_FW_ordered_LOG2_odd[Mj,-c(1:6)] + average_time.point[1,]
     }
   }
 }
@@ -369,7 +390,7 @@ for(j in 1:3) {
     
       if(t_LFQ_FW_ordered_LOG2_even[i,5] == paste0("n",j)){
       Mj = j
-      norm_FW_Log2_even[i,-c(1:5)] <- t_LFQ_FW_ordered_LOG2_even[i,-c(1:5)] - t_LFQ_FW_ordered_LOG2_even[Mj,-c(1:5)] + average_time.point[2,]
+      norm_FW_Log2_even[i,-c(1:6)] <- t_LFQ_FW_ordered_LOG2_even[i,-c(1:6)] - t_LFQ_FW_ordered_LOG2_even[Mj,-c(1:6)] + average_time.point[2,]
     }
   }
 }
@@ -378,12 +399,13 @@ for(j in 1:3) {
 # row bind the normalization done using separate time zero and then perform PCA analysis 
 mean_normalized_FW_byProtein_sepTBIandCTRL <- rbind(norm_FW_Log2_odd,norm_FW_Log2_even)
 
-pca_FW_meanNormalized <- prcomp(mean_normalized_FW_byProtein_sepTBIandCTRL[,-c(1:5)])
+pca_FW_meanNormalized <- prcomp(mean_normalized_FW_byProtein_sepTBIandCTRL[,-c(1:6)])
 
 
 ```
 
-PCA plot of samples that were normalized by the sample type. An average time zero for Control and one for TBI was applied to the samples matching. After normalization all samples were analyzed by PCA. Note this still exhibits separation based on replicate.
+#### PCA plot of samples that were normalized by the sample type. 
+An average time zero for Control and one for TBI was applied.  After normalization all samples were analyzed by PCA. Note separation based on replicate is still a driver of variation, but there less separation between n1 replicate and n2 and n3 replicate.
 ```{r, echo=FALSE}
 sample.colors = as.numeric(factor(mean_normalized_FW_byProtein_sepTBIandCTRL$replicates))
 par(mar=c(6.5, 7.5, 4.5, 1))
@@ -400,20 +422,21 @@ legend("topright",
        col = colors[3:5][1:length(levels(factor(mean_normalized_FW_byProtein_sepTBIandCTRL$replicates)))], 
        y.intersp = 0.7)
 
-sample.colors = as.numeric(factor(mean_normalized_FW_byProtein_sepTBIandCTRL$replicates))
- par(mar=c(6.5, 7.5, 4.5, 1))
- plot(pca_FW_meanNormalized$x[,1], pca_FW_meanNormalized$x[,3], pch = 19, cex = 2,
-     col = colors[3:5][sample.colors],
-     main = "Principle Component Analysis\n Brain TBI Normalized to Mean Protein Intensity\n on Food & Water",
-     ylim = c(-20, 20), xlim = c(-20, 25),
-     xlab = "PC1 16.18%", ylab ="PC3 11.62%")
-text(pca_FW_meanNormalized$x[,1], pca_FW_meanNormalized$x[,3],
-     labels = mean_normalized_FW_byProtein_sepTBIandCTRL$Samples)
-legend("topright",
-       legend = levels(factor(mean_normalized_FW_byProtein_sepTBIandCTRL$replicates)),
-       pch = 16,
-       col = colors[3:5][1:length(levels(factor(mean_normalized_FW_byProtein_sepTBIandCTRL$replicates)))],
-       y.intersp = 0.7)
+# Good code, but removed for Wassarman
+# sample.colors = as.numeric(factor(mean_normalized_FW_byProtein_sepTBIandCTRL$replicates))
+#  par(mar=c(6.5, 7.5, 4.5, 1))
+#  plot(pca_FW_meanNormalized$x[,1], pca_FW_meanNormalized$x[,3], pch = 19, cex = 2,
+#      col = colors[3:5][sample.colors],
+#      main = "Principle Component Analysis\n Brain TBI Normalized to Mean Protein Intensity\n on Food & Water",
+#      ylim = c(-20, 20), xlim = c(-20, 25),
+#      xlab = "PC1 16.18%", ylab ="PC3 11.62%")
+# text(pca_FW_meanNormalized$x[,1], pca_FW_meanNormalized$x[,3],
+#      labels = mean_normalized_FW_byProtein_sepTBIandCTRL$Samples)
+# legend("topright",
+#        legend = levels(factor(mean_normalized_FW_byProtein_sepTBIandCTRL$replicates)),
+#        pch = 16,
+#        col = colors[3:5][1:length(levels(factor(mean_normalized_FW_byProtein_sepTBIandCTRL$replicates)))],
+       # y.intersp = 0.7)
 
  sample.colors = as.numeric(factor(mean_normalized_FW_byProtein_sepTBIandCTRL$Sample_Type))
  par(mar=c(6.5, 7.5, 4.5, 1))
@@ -433,11 +456,14 @@ legend("topright",
 
 ```
 
-
+The loadings plot describes which proteins are driving the differences in grouping in the PCA plot above. Focusing on PC2, the proteins that are driving the clustering driven replicates are in red. After further analysis, these proteins have coefficient of variations (CV) greater than 100%.
 ```{r, echo=FALSE}
 # Loadings plot of samples normalized with separate time zero's
 par(mar=c(6.5, 7.5, 4.5, 1))
-plot(pca_FW_meanNormalized$rotation, pch = 19, cex = 2,
+plot(pca_FW_meanNormalized$rotation, 
+     pch = 19, 
+     cex = 2,
+     col="#00000033",
      main = "Loadings Plot\n Normalized to separate time zero \n Control and TBI Samples on Food & Water") 
 text(pca_FW_meanNormalized$rotation[,1][which(pca_FW_meanNormalized$rotation[,2] < -0.1)], pca_FW_meanNormalized$rotation[,2][which(pca_FW_meanNormalized$rotation[,2] < -0.1)], 
      col = "red", labels = names(pca_FW_meanNormalized$rotation[,1][which(pca_FW_meanNormalized$rotation[,2] < -0.1)]))
@@ -448,16 +474,16 @@ text(pca_FW_meanNormalized$rotation[,1][which(pca_FW_meanNormalized$rotation[,2]
 
 #### Coefficient of Variation for FW samples normalized to separate TBI and Control time zero
 
-Taking normalized LFQ values for TBI and control samples, the next step is to look at CV distributions. 
+Taking normalized LFQ values for TBI and control samples, the CV distributions are explored and addressed. 
 
 ```{r cv_brains, echo=FALSE}
-mean_normalized_FW_byProtein_sepTBIandCTRL_removeLOG2 <- cbind(mean_normalized_FW_byProtein_sepTBIandCTRL[,c(1:5)] ,2^(mean_normalized_FW_byProtein_sepTBIandCTRL[,-c(1:5)]))
+mean_normalized_FW_byProtein_sepTBIandCTRL_removeLOG2 <- cbind(mean_normalized_FW_byProtein_sepTBIandCTRL[,c(1:6)] ,2^(mean_normalized_FW_byProtein_sepTBIandCTRL[,-c(1:6)]))
 
 # Aggregate the replicates and calculate the mean LFQ intensities
-average_protein_sepTBIandCTRL <- aggregate(mean_normalized_FW_byProtein_sepTBIandCTRL_removeLOG2[,-c(1:5)],
+average_protein_sepTBIandCTRL <- aggregate(mean_normalized_FW_byProtein_sepTBIandCTRL_removeLOG2[,-c(1:6)],
                                 list(mean_normalized_FW_byProtein_sepTBIandCTRL_removeLOG2$Samples), mean)
 # Aggregate the replicates and calculate the stdev LFQ intensities
-stdev_sepTBIandCTRL <- aggregate(mean_normalized_FW_byProtein_sepTBIandCTRL_removeLOG2[,-c(1:5)],
+stdev_sepTBIandCTRL <- aggregate(mean_normalized_FW_byProtein_sepTBIandCTRL_removeLOG2[,-c(1:6)],
                                 list(mean_normalized_FW_byProtein_sepTBIandCTRL_removeLOG2$Samples), sd)
 
 
@@ -472,10 +498,11 @@ colnames(cv_time.dataframe.septTBIandCTRL) <- rownames(cv_time.sepTBIandCTRL[-c(
 ```
 
 Histogram of the CV values for each protein. The blue line is the mean CV value at 16.85% and black line is the median CV value at 13.12%. 
+
 ```{r, echo=FALSE}
 hist(cv_time.matrix.sepTBIandCTRL,
      breaks = 100,
-     main = "CV for Normalized Proteins",
+     main = "% CV Distribution for Normalized Proteins",
      xlab = "Coefficient of Variation (CV)",
      xlim = c(0,200),
      col= "darkmagenta")
@@ -489,7 +516,7 @@ abline(v=median(cv_time.matrix.sepTBIandCTRL),
 
 ```
 
-Take the normalized FW data set (with TBI and Control Samples) and filter the proteins with greater than 100% CV. These highly variable proteins add to the variability driven by the replicates. In total there are 90 proteins with CV greater than 100%.  
+For the normalized FW (Food and Water) data set (with TBI and Control Samples), the proteins with greater than 100% CV are removed. These highly variable proteins add to the variability within replicates. In total there are 90 proteins with CV greater than 100%.  
 
 ```{r CV_timePoint, echo=FALSE}
 
@@ -542,13 +569,14 @@ for (i in 1:length(cv_100_protein_septTBIandCTRL.id)) {
 cv_100_protein_Log2 <- cbind(cv_100_meta.data.frame, cv_100_data.frame)
 rownames(cv_100_protein_Log2) <- cv_100_protein_Log2$id
 
-write.csv(cv_100_data.frame, "G:/Projects/Proteomics/DorsophilaHead_Experiment/Routput/Brain/CV_greater100_FW_Norm_sepTBIandCTRL.csv", row.names = TRUE)
+#write.csv(cv_100_protein_Log2, "G:/Projects/Proteomics/DorsophilaHead_Experiment/Routput/Brain/CV_greater100_FW_Norm_sepTBIandCTRL.csv", row.names = FALSE)
 
 
 ```
 
-Heatmap of the proteins that have a CV greater than 100%, clustering by both sample and proteins. The proteins are identified by MaxQuant id.  
-```{r , echo= FALSE}
+ 
+
+```{r , fig.cap="Heatmap of the proteins that have a CV greater than 100%, clustering by both sample and proteins. The x-axis is samples and y axis is the 90 proteins. The proteins are identified by MaxQuant id.d", echo= FALSE}
 
  pheatmap(cv_100_protein_Log2[,-c(1:3)], 
          color = inferno(10), 
@@ -559,14 +587,32 @@ Heatmap of the proteins that have a CV greater than 100%, clustering by both sam
 
 ```
 
-Reduce the proteins to only those with CV less than 100% and perfrom PCA analysis.
+Filter proteins to only those with CV less than 100% and perfrom PCA analysis.
 
-```{r CV_lessThan_100, include=TRUE}
+```{r CV_lessThan_100, echo=FALSE}
 character_proteins_greater100 <- as.character(cv_100_protein_septTBIandCTRL.id)
 
 FW_proteins_lessThan100CV <- mean_normalized_FW_byProtein_sepTBIandCTRL[,-which(colnames(mean_normalized_FW_byProtein_sepTBIandCTRL)%in% character_proteins_greater100)]
 
-pca_FW_lessThan100CV <- prcomp(FW_proteins_lessThan100CV[,-c(1:5)])
+
+
+FW_proteins_lessThan100CV_noMeta <- FW_proteins_lessThan100CV[,-c(1:6)]
+
+t_FW_proteins_lessThan100CV <- t(FW_proteins_lessThan100CV_noMeta)
+colnames(t_FW_proteins_lessThan100CV) <- FW_proteins_lessThan100CV$Samples
+
+proteins_lessThan100CV_csv <- proteinGroups_dros_Brain_FWW[which(proteinGroups_dros_Brain_FWW$id %in% rownames(t_FW_proteins_lessThan100CV)),1:3]
+
+
+
+proteins_lessThan100CV_csv <- cbind(proteins_lessThan100CV_csv, t_FW_proteins_lessThan100CV)
+df.sample.names <- df.sample.names[order(df.sample.names$number),]
+
+
+#write.csv(proteins_lessThan100CV_csv, "G:/Projects/Proteomics/DorsophilaHead_Experiment/Routput/Brain/Proteins_Lessthan100CV_Norm_BrainTBI.csv", row.names = FALSE)
+
+# PCA
+pca_FW_lessThan100CV <- prcomp(FW_proteins_lessThan100CV[,-c(1:6)])
 
 #proteins <- names(pca_FW_lessThan100CV$rotation[,1][which(pca_FW_lessThan100CV$rotation[,1] < -0.045)])
 
@@ -587,15 +633,93 @@ text(pca_FW_lessThan100CV$x[,1], pca_FW_lessThan100CV$x[,2], labels = FW_protein
 legend("topright", legend = levels(factor(FW_proteins_lessThan100CV$replicates)), pch = 16, 
        col = colors[3:5][1:length(levels(factor(FW_proteins_lessThan100CV$replicates)))], y.intersp = 0.7)
 
+sample.colors = as.numeric(factor(FW_proteins_lessThan100CV$Sample_Type))
+par(mar=c(6.5, 7.5, 4.5, 1))
+plot(pca_FW_lessThan100CV$x, pch = 19, cex = 2,
+     col = colors[sample.colors], 
+     ylim = c(-20,20),
+     xlim = c(-20,20),
+     main = "Principle Component Analysis\n Proteins with Less than 100% CV\n Control and TBI Samples on Food & Water", 
+     xlab = "PC1 19.05%", ylab ="PC2 14.47%")
+text(pca_FW_lessThan100CV$x[,1], pca_FW_lessThan100CV$x[,2], labels = FW_proteins_lessThan100CV$Samples)
+legend("topright", legend = levels(factor(FW_proteins_lessThan100CV$Sample_Type)), pch = 16, 
+       col = colors[1:length(levels(factor(FW_proteins_lessThan100CV$Sample_Type)))], y.intersp = 0.7)
+```
+
+The loading's plot shows proteins driving the separation by sample type (i.e., either TBI or Controls). 
+Note these proteins are centralized around zero on both the x and y axis. 
+``` {r, echo=FALSE}
 # Loadings plot of samples with proteins less than 100% CV
 par(mar=c(6.5, 7.5, 4.5, 1))
-plot(pca_FW_lessThan100CV$rotation, pch = 19, cex = 2,ylim = c(-0.2, 0.1), xlim = c(-0.10, 0.15),
+plot(pca_FW_lessThan100CV$rotation, 
+     pch = 19, 
+     cex = 2,
+     col="#00000033",
+     ylim = c(-0.2, 0.1), 
+     xlim = c(-0.10, 0.15),
      main = "Loadings Plot\n Proteins with Less than 100% CV\n Control and TBI Samples on Food & Water") 
-text(pca_FW_lessThan100CV$rotation[,1][which(pca_FW_lessThan100CV$rotation[,1] < -0.045)], pca_FW_lessThan100CV$rotation[,2][which(pca_FW_lessThan100CV$rotation[,1] < -0.045)], 
-     col = "red", labels = names(pca_FW_lessThan100CV$rotation[,1][which(pca_FW_lessThan100CV$rotation[,1] < -0.045)]))
-text(pca_FW_lessThan100CV$rotation[,1][which(pca_FW_lessThan100CV$rotation[,1] > 0.045)], pca_FW_lessThan100CV$rotation[,2][which(pca_FW_lessThan100CV$rotation[,1] > 0.045)], 
-     col = "red", labels = names(pca_FW_lessThan100CV$rotation[,1][which(pca_FW_lessThan100CV$rotation[,1] > 0.045)]))
+# text(pca_FW_lessThan100CV$rotation[,1][which(pca_FW_lessThan100CV$rotation[,1] < -0.045)], pca_FW_lessThan100CV$rotation[,2][which(pca_FW_lessThan100CV$rotation[,1] < -0.045)], 
+#      col = "red", labels = names(pca_FW_lessThan100CV$rotation[,1][which(pca_FW_lessThan100CV$rotation[,1] < -0.045)]))
+# text(pca_FW_lessThan100CV$rotation[,1][which(pca_FW_lessThan100CV$rotation[,1] > 0.045)], pca_FW_lessThan100CV$rotation[,2][which(pca_FW_lessThan100CV$rotation[,1] > 0.045)], 
+#      col = "red", labels = names(pca_FW_lessThan100CV$rotation[,1][which(pca_FW_lessThan100CV$rotation[,1] > 0.045)]))
 
+# bin<-hexbin(pca_FW_lessThan100CV$rotation[,1], pca_FW_lessThan100CV$rotation[,2], xbins=40)
+# my_colors=colorRampPalette(rev(brewer.pal(11,'Spectral')))) 
+# 
+# par(mar=c(6.5, 7.5, 4.5, 1))
+# plot(bin, colramp=my_colors,  main = "Loadings Plot\n Proteins with Less than 100% CV\n Control and TBI Samples on Food & Water")
 
 
 ``` 
+
+#### PLSDA
+
+What proteins are driving the separation between Controls and TBI? A PLSDA will answer this question.
+```{r plsda, echo=FALSE}
+FW_proteins_lessThan100CV_matrix <- as.matrix(FW_proteins_lessThan100CV_noMeta)
+
+treatment_plsda_less100 <- plsr(as.numeric(FW_proteins_lessThan100CV$Sample_Type) ~ FW_proteins_lessThan100CV_matrix, method = "oscorespls", ncomp =  4)
+summary(treatment_plsda_less100)
+
+```
+
+```{r, echo=FALSE}
+sample.colors = as.numeric(factor(FW_proteins_lessThan100CV$Sample_Type))
+plot(treatment_plsda_less100$scores, 
+     pch = 19,  
+     cex = 2,
+     col = colors[sample.colors],
+     main = "PLSDA of Food and Water Samples")
+text(treatment_plsda_less100$scores[,1], 
+          treatment_plsda_less100$scores[,2],
+          as.character(FW_proteins_lessThan100CV$Samples), 
+          pos = 4, cex = 0.8)
+legend("topleft", legend = levels(factor(FW_proteins_lessThan100CV$Sample_Type)), pch = 16, col = colors[1:length(levels(factor(FW_proteins_lessThan100CV$Sample_Type)))])
+```
+
+```{r, echo=FALSE}
+
+dotchart(rev(treatment_plsda_less100$loadings[order(-abs(treatment_plsda_less100$loadings[,1])),1][1:25]), 
+         pch = 19,
+         main = "First 25 Portein Groups driving Component 1 separation",
+         color = "#5C66AF",
+         xlab = "Component 1 Loadings")
+
+dotchart(rev(treatment_plsda_less100$loadings[order(-abs(treatment_plsda_less100$loadings[,1])),1][26:50]), 
+         pch = 19,
+         main = "Next 25 Portein Groups driving Component 1 separation",
+         color = "#5C66AF",
+         xlab = "Component 1 Loadings")
+```
+
+
+```{r, echo=FALSE}
+proteins_driving_TBIandCtrl <- rev(treatment_plsda_less100$loadings[order(-abs(treatment_plsda_less100$loadings[,1])),1][1:50])
+
+proteins_driving_TBIandCtrl_numeric <- as.numeric(names(proteins_driving_TBIandCtrl))
+
+proteins_driving_TBIandCtrl_meta <- proteinGroups_dros_Brain_FWW[which(proteinGroups_dros_Brain_FWW$id %in% names(proteins_driving_TBIandCtrl)),1:3]
+
+#write.csv(proteins_driving_TBIandCtrl_meta, "G:/Projects/Proteomics/DorsophilaHead_Experiment/Routput/Brain/NormProteins_PLSDA_BrainTBI.csv", row.names = FALSE)
+
+```
