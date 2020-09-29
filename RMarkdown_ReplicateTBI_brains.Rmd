@@ -28,6 +28,10 @@ library(RColorBrewer)
 library(viridis)
 library(pcaMethods)
 library(ggplot2)
+library(grid)
+library(gridExtra)
+library(cowplot)
+library(hrbrthemes)
 library(devtools)
 library(e1071)
 library(dplyr)
@@ -37,6 +41,8 @@ library(yaml)
 library(Rcpp)
 library(pls)
 library(hexbin)
+library(MetaCycle)
+library(EnhancedVolcano)
 ```
 
 The data exploration and analysis was performed using R. A series of filters have been applied to clean the data. The following were removed: contaminants, reverse sequences, and only identified by site. Then the dataframe was subset using a 50% filter, removing protein groups that have over half of the values missing, the output will be used for imputation purposes. The following utilized protein groups that contain complete measurements across all samples. 
@@ -97,37 +103,14 @@ filter.std.plotting <- function (eset, min.std,visu=TRUE)
   eset[index,]
 }
 
-# fuzzyprep_imputation_included <- function(z)
-# {
-#   exprValues <- new("ExpressionSet", exprs = as.matrix(z))
-#   # exclude proteins that have more than 50% of measurements missing
-#   exprValues.r <- filter.NA(exprValues, thres = 0.50)
-#   # Fuzzy c-means does not allow for missing values, replace missing values by median values
-#   exprValues.f = fill.NA(exprValues.r, mode="median")
-#   # Set a minimum threshold for variation 
-#   tmp = filter.std(exprValues.f, min.std = 0.1)
-#   # Clustering is performed in Eculidian space, standaridize abundance values to have a mean value of zero
-#   # Ensures that proteins with similar changes in abundance are close in Euclidean space
-#   exprValues.s = standardise(tmp)
-#   return(exprValues.s)
-# }
-# 
-# fuzzyprep_usepreviousImputation <- function(z)
-# {
-#   exprValues <- new("ExpressionSet", exprs = as.matrix(z))
-#   tmp = filter.std.plotting(exprValues, min.std = 0.1)
-#   exprValues.s = standardise(exprValues)
-#   return(exprValues.s)
-# }
-# 
-# fuzzyprep_usepreviousImputation_foldchange <- function(z)
-# {
-#   exprValues <- new("ExpressionSet", exprs = as.matrix(z))
-#   tmp = filter.std.plotting(exprValues, min.std = 0.1)
-#   #exprValues.s = standardise(exprValues)
-#   return(exprValues)
-# }
-
+fuzzyprep_usepreviousImputation_foldchange <- function(z)
+{
+  exprValues <- new("ExpressionSet", exprs = as.matrix(z))
+  tmp = filter.std.plotting(exprValues, min.std = 0.1)
+  #exprValues.s = standardise(exprValues)
+  return(exprValues)
+}
+  
 ```
 
 
@@ -150,7 +133,7 @@ print(paste("Number of complete proteins: ", nrow(proteinGroups_dros_Brain_FWW))
 
 A few notes:
 
-* FWW refers to data set that includes samples on Food and Water as well as samples on Water only
+* FWW refers to data set that includes samples on Food as well as samples on Water only
 * FW refers to a subset of the data that includes samples on Food and water
 * FWW and FW datasets are Log2 transformed. 
 * Note for simplification MaxQuant identifiers for protein groups will be used in replacement of Uniprot ID or gene name.
@@ -184,6 +167,19 @@ LFQ_FWW_Ordered <- 2^LFQ_FWW_Ordered_LOG2
 
 LFQ_FWW_Ordered_LOG2_uniqueName <- LFQ_FWW_Ordered_LOG2
 colnames(LFQ_FWW_Ordered_LOG2_uniqueName) <- df.sample.names$samples
+
+sample_7_n3 <- apply(LFQ_FWW_Ordered_LOG2_uniqueName[,19:20] , 1, mean)
+sample_9_n2 <- apply(LFQ_FWW_Ordered_LOG2_uniqueName[,24:25] , 1, mean)
+sample_20_n3 <- apply(LFQ_FWW_Ordered_LOG2_uniqueName[,56:57] , 1, mean)
+
+LFQ_FWW_Ordered_LOG2_uniqueName_add7920 <- cbind(LFQ_FWW_Ordered_LOG2_uniqueName[,1:20],
+                                                 sample_7_n3,
+                                                 LFQ_FWW_Ordered_LOG2_uniqueName[,21:24],
+                                                 sample_9_n2,
+                                                 LFQ_FWW_Ordered_LOG2_uniqueName[,25:57],
+                                                 sample_20_n3,
+                                                 LFQ_FWW_Ordered_LOG2_uniqueName[,58:ncol(LFQ_FWW_Ordered_LOG2_uniqueName)])
+
 
 ```
 
@@ -239,8 +235,10 @@ brain_FWW_meta$hour <- c(rep("0", 6), rep("30 min",6), rep("1 hr",6), rep("2 hr"
 
 brain_FWW_meta$replicates <- sub("\\.\\d+$", "", df.sample.names$replicates)
 brain_FWW_meta$replicates <- gsub("[.]","",brain_FWW_meta$replicates)
-brain_FWW_meta$unique <- apply( brain_FWW_meta[ , c(1,5) ] , 1 , paste , collapse = "-" )
+brain_FWW_meta$unique <- apply( brain_FWW_meta[ , c(2,4,5) ] , 1 , paste , collapse = " " )
 #sub("(^[^.]+[.]+).*", "\\1", brain_FWW_meta$replicates)
+
+brain_FW_meta <- brain_FWW_meta[1:57,]
 
 #print(brain_FWW_meta, quote = TRUE, row.names = FALSE)
 #number_times = c(0, 0, (.5/24), (.5/24), (1/24), (1/24), (2/24), (2/24), 
@@ -248,6 +246,8 @@ brain_FWW_meta$unique <- apply( brain_FWW_meta[ , c(1,5) ] , 1 , paste , collaps
                  # (16/24), (16/24), (24/24), (24/24), (48/24), (48/24), (72/24), (72/24), 
                  # 7, 7, 14, 14, 21, 21, 28, 28, 35, 35)
 #head_meta$time <- number_times
+
+
 ```
 
 ```{r, echo=FALSE}
@@ -319,16 +319,17 @@ t_LFQ_FW_ordered_LOG2_odd <- t_LFQ_FW_ordered_LOG2[which(t_LFQ_FW_ordered_LOG2$S
 t_LFQ_FW_ordered_LOG2_even <- t_LFQ_FW_ordered_LOG2[which(t_LFQ_FW_ordered_LOG2$Samples %in% even),]
 
 # Find average intensities for each protein across batches
-average_time.point <- aggregate(t_LFQ_FW_ordered_LOG2[,6:ncol(t_LFQ_FW_ordered_LOG2)],
+average_time.point <- aggregate(t_LFQ_FW_ordered_LOG2[,7:ncol(t_LFQ_FW_ordered_LOG2)],
                                 list(t_LFQ_FW_ordered_LOG2$Samples), mean)
 
-average_time.point_odd <- aggregate(t_LFQ_FW_ordered_LOG2_odd[,6:ncol(t_LFQ_FW_ordered_LOG2_odd)],
+average_time.point_odd <- aggregate(t_LFQ_FW_ordered_LOG2_odd[,7:ncol(t_LFQ_FW_ordered_LOG2_odd)],
                                     list(t_LFQ_FW_ordered_LOG2_odd$Samples), mean)
 rownames(average_time.point_odd) <- average_time.point_odd[,1]
 
-average_time.point_even <- aggregate(t_LFQ_FW_ordered_LOG2_even[,6:ncol(t_LFQ_FW_ordered_LOG2_even)],
+average_time.point_even <- aggregate(t_LFQ_FW_ordered_LOG2_even[,7:ncol(t_LFQ_FW_ordered_LOG2_even)],
                                      list(t_LFQ_FW_ordered_LOG2_even$Samples), mean)
 rownames(average_time.point_even) <- average_time.point_even[,1]
+
 
 ```
 
@@ -360,7 +361,7 @@ average_time.point_TBI_CTRL <- data.frame(colMeans(t_LFQ_FW_ordered_LOG2[1:6,7:n
 average_time.point_TBI_CTRL <- t(average_time.point_TBI_CTRL)
 
 # Add this average to the end of all the averages 
-average_time.point <- rbind(average_time.point[,-c(1:2)],average_time.point_TBI_CTRL)
+average_time.point <- rbind(average_time.point[,-c(1)],average_time.point_TBI_CTRL)
 
 # create a new data frame for normalization
 norm_FW_Log2 <- t_LFQ_FW_ordered_LOG2
@@ -400,6 +401,50 @@ for(j in 1:3) {
 mean_normalized_FW_byProtein_sepTBIandCTRL <- rbind(norm_FW_Log2_odd,norm_FW_Log2_even)
 
 pca_FW_meanNormalized <- prcomp(mean_normalized_FW_byProtein_sepTBIandCTRL[,-c(1:6)])
+
+
+```
+
+```{r,echo=FALSE}
+
+
+ pheatmap(mean_normalized_FW_byProtein_sepTBIandCTRL[1:28,-c(1:6)], 
+         color = inferno(10), 
+         show_colnames = FALSE,
+         show_rownames = TRUE,
+         scale = "column",
+         #cluster_rows = FALSE,
+         drop_levels = TRUE,
+         main = "Mean Normalized Proteins - Controls")
+
+ pheatmap(mean_normalized_FW_byProtein_sepTBIandCTRL[29:nrow(mean_normalized_FW_byProtein_sepTBIandCTRL),-c(1:6)], 
+         color = inferno(10), 
+         show_colnames = FALSE,
+         show_rownames = TRUE,
+         scale = "column",
+         #cluster_cols = FALSE,
+         drop_levels = TRUE,
+         main = "Mean Normalized Proteins - TBI")
+
+```
+
+
+```{r,echo=FALSE}
+##### Eucclidean clustering of Fold Change #####
+mean_normalized_CTRL_clus <- hclust(dist(mean_normalized_FW_byProtein_sepTBIandCTRL[1:28,-c(1:6)], method = "euclidean"))
+clusters <- cutree(mean_normalized_CTRL_clus, k=20)
+
+par(mar = c(4,6,4,1), las  = 1, mgp = c(2.5,0.5,0), tcl =  -0.3, ps = 12)
+plot(mean_normalized_CTRL_clus, label= FALSE, main = "Brain Dendogram Controls - Euclidean Distance")
+rect.hclust(mean_normalized_CTRL_clus, k=10, border = "red")
+
+# TBI clustering
+mean_normalized_TBI_clus  <- hclust(dist(mean_normalized_FW_byProtein_sepTBIandCTRL[29:nrow(mean_normalized_FW_byProtein_sepTBIandCTRL),-c(1:6)], method = "euclidean"))
+clusters <- cutree(mean_normalized_TBI_clus, k =20)
+# 
+par(mar = c(4,6,4,1), las  = 1, mgp = c(2.5,0.5,0), tcl =  -0.3, ps = 12)
+plot(mean_normalized_TBI_clus, label= FALSE, main = "Brain Dendogram TBI - Euclidean Distance")
+rect.hclust(mean_normalized_TBI_clus, k=10, border = "red")
 
 
 ```
@@ -495,6 +540,7 @@ cv_time.dataframe.septTBIandCTRL <- as.data.frame(t(cv_time.matrix.sepTBIandCTRL
 
 colnames(cv_time.dataframe.septTBIandCTRL) <- rownames(cv_time.sepTBIandCTRL[-c(1:2),])
 
+
 ```
 
 Histogram of the CV values for each protein. The blue line is the mean CV value at 16.85% and black line is the median CV value at 13.12%. 
@@ -513,6 +559,8 @@ abline(v=mean(cv_time.matrix.sepTBIandCTRL),
 abline(v=median(cv_time.matrix.sepTBIandCTRL),
        color= "red",
        lwd = 2)
+
+boxplot(cv_time.dataframe.septTBIandCTRL)
 
 ```
 
@@ -569,7 +617,7 @@ for (i in 1:length(cv_100_protein_septTBIandCTRL.id)) {
 cv_100_protein_Log2 <- cbind(cv_100_meta.data.frame, cv_100_data.frame)
 rownames(cv_100_protein_Log2) <- cv_100_protein_Log2$id
 
-#write.csv(cv_100_protein_Log2, "G:/Projects/Proteomics/DorsophilaHead_Experiment/Routput/Brain/CV_greater100_FW_Norm_sepTBIandCTRL.csv", row.names = FALSE)
+# write.csv(cv_100_protein_Log2, "G:/Projects/Proteomics/DorsophilaHead_Experiment/Routput/Brain/CV_greater100_FW_Norm_sepTBIandCTRL.csv", row.names = FALSE)
 
 
 ```
@@ -582,6 +630,8 @@ rownames(cv_100_protein_Log2) <- cv_100_protein_Log2$id
          color = inferno(10), 
          show_colnames = FALSE,
          show_rownames = FALSE,
+         #cluster_cols = FALSE,
+         scale = "row",
          drop_levels = TRUE,
          main = "Proteins with greater than 100% CV")
 
@@ -594,8 +644,6 @@ character_proteins_greater100 <- as.character(cv_100_protein_septTBIandCTRL.id)
 
 FW_proteins_lessThan100CV <- mean_normalized_FW_byProtein_sepTBIandCTRL[,-which(colnames(mean_normalized_FW_byProtein_sepTBIandCTRL)%in% character_proteins_greater100)]
 
-
-
 FW_proteins_lessThan100CV_noMeta <- FW_proteins_lessThan100CV[,-c(1:6)]
 
 t_FW_proteins_lessThan100CV <- t(FW_proteins_lessThan100CV_noMeta)
@@ -603,9 +651,11 @@ colnames(t_FW_proteins_lessThan100CV) <- FW_proteins_lessThan100CV$Samples
 
 proteins_lessThan100CV_csv <- proteinGroups_dros_Brain_FWW[which(proteinGroups_dros_Brain_FWW$id %in% rownames(t_FW_proteins_lessThan100CV)),1:3]
 
-
-
 proteins_lessThan100CV_csv <- cbind(proteins_lessThan100CV_csv, t_FW_proteins_lessThan100CV)
+
+colnames(proteins_lessThan100CV_csv) <- c("Uniprot.ID", "MaxQuant.ID", "Gene.names", mean_normalized_FW_byProtein_sepTBIandCTRL$unique)
+
+
 df.sample.names <- df.sample.names[order(df.sample.names$number),]
 
 
@@ -619,7 +669,7 @@ pca_FW_lessThan100CV <- prcomp(FW_proteins_lessThan100CV[,-c(1:6)])
 #cv_less100_meta <- proteinGroups_dros_Brain_FWW[which(proteinGroups_dros_Brain_FWW$id == "4849"),]
 ```
 
-
+PCA plots of proteins with CV's less than 100. These proteins will be moved down the analysis pipeline.
 ```{r, echo=FALSE}
 sample.colors = as.numeric(factor(FW_proteins_lessThan100CV$replicates))
 par(mar=c(6.5, 7.5, 4.5, 1))
@@ -672,6 +722,25 @@ plot(pca_FW_lessThan100CV$rotation,
 
 ``` 
 
+```{r, echo=FALSE}
+
+df_t_FW_proteins_lessThan100CV <- as.data.frame(t_FW_proteins_lessThan100CV)
+colnames(df_t_FW_proteins_lessThan100CV) <- rownames(brain_FW_meta)
+
+hist(t_FW_proteins_lessThan100CV[,12:13])
+hist(t_FW_proteins_lessThan100CV[,42:44])
+
+# What is distribution of p-values for t.test stats
+hist(t_FW_proteins_lessThan100CV[,12:13],
+     breaks = 100,
+     main = "Distribution of p-values across time points",
+     xlab = "p-value",
+     xlim = c(0,1))
+
+
+```
+
+
 #### PLSDA
 
 What proteins are driving the separation between Controls and TBI? A PLSDA will answer this question.
@@ -683,43 +752,778 @@ summary(treatment_plsda_less100)
 
 ```
 
+##### Data has been saved in .Rdata file. Can continue data anlysis from here
+
+```{r, echo=FALSE}
+save(proteinGroups_dros_Brain_FWW, 
+     LFQ_FWW_Ordered_LOG2_uniqueName, 
+     brain_FWW_meta,
+     brain_FW_meta,
+     t_LFQ_FW_ordered_LOG2,
+     t_LFQ_FW_ordered_LOG2_odd,
+     t_LFQ_FW_ordered_LOG2_even,
+     average_time.point,
+     average_time.point_odd,
+     average_time.point_even,
+     average_time.point_TBI_CTRL,
+     colors,
+     pca_FW,
+     mean_normalized_FW_byProtein_sepTBIandCTRL,
+     pca_FW_meanNormalized,
+     mean_normalized_FW_byProtein_sepTBIandCTRL_removeLOG2,
+     average_protein_sepTBIandCTRL,
+     stdev_sepTBIandCTRL,
+     cv_time.sepTBIandCTRL,
+     cv_time.matrix.sepTBIandCTRL,
+     cv_time.dataframe.septTBIandCTRL,
+     cv_100_septTBIandCTRL,
+     cv_100_protein_Log2,
+     FW_proteins_lessThan100CV,
+     FW_proteins_lessThan100CV_noMeta,
+     t_FW_proteins_lessThan100CV,
+     proteins_lessThan100CV_csv,
+     pca_FW_lessThan100CV,
+     FW_proteins_lessThan100CV_matrix,
+     treatment_plsda_less100,
+     file = "C:/Users/etrujillo2/Documents/Projects/.Rproj.user/Drosophila-Traumatic-Brain-Injury/ReplicteTBI_brains_formatted.Rdata")
+
+save(LFQ_FWW_Ordered_LOG2_uniqueName_add7920,
+     brain_FWW_meta,
+     file = "C:/Users/etrujillo2/Documents/Projects/.Rproj.user/Drosophila-Traumatic-Brain-Injury/FWW_TBIreplicates_brains.Rdata")
+
+load("C:/Users/etrujillo2/Documents/Projects/.Rproj.user/Drosophila-Traumatic-Brain-Injury/ReplicteTBI_brains_formatted.Rdata")
+
+```
+
 ```{r, echo=FALSE}
 sample.colors = as.numeric(factor(FW_proteins_lessThan100CV$Sample_Type))
 plot(treatment_plsda_less100$scores, 
      pch = 19,  
      cex = 2,
+     yaxt = "n",
      col = colors[sample.colors],
      main = "PLSDA of Food and Water Samples")
-text(treatment_plsda_less100$scores[,1], 
-          treatment_plsda_less100$scores[,2],
-          as.character(FW_proteins_lessThan100CV$Samples), 
-          pos = 4, cex = 0.8)
+axis(side = 2, las = 2, mgp = c(3, 0.75, 0))
+# text(treatment_plsda_less100$scores[,1], 
+#           treatment_plsda_less100$scores[,2],
+#           as.character(FW_proteins_lessThan100CV$Samples), 
+#           pos = 4, cex = 0.8)
 legend("topleft", legend = levels(factor(FW_proteins_lessThan100CV$Sample_Type)), pch = 16, col = colors[1:length(levels(factor(FW_proteins_lessThan100CV$Sample_Type)))])
 ```
 
 ```{r, echo=FALSE}
+# extract the MaxQuant id's for plsda top 25 leading proteins
+plsda_first25_id <- as.numeric(names(rev(treatment_plsda_less100$loadings[order(-abs(treatment_plsda_less100$loadings[,1])),1][1:25])))
+
+# gene name conversion from id
+plsda_gene.name <- proteinGroups_dros_Brain_FWW_extended$Gene.names[which(proteinGroups_dros_Brain_FWW_extended$id %in% plsda_first25_id)]
+
+#Prepare PLSDA dataframe for sharing
+plsda_first25_meta <- proteinGroups_dros_Brain_FWW_extended[which(proteinGroups_dros_Brain_FWW_extended$id %in% plsda_first25_id),c(1:8, 799)]
+
+# reorder proteins to match the dotchart plot above
+plsda_first25_meta <- plsda_first25_meta[match(rev(plsda_first25_id), plsda_first25_meta$id),]
+
+# write CSV file
+# write.csv(plsda_first25_meta, "H:/Projects/Proteomics/TBI/PLSDa_lessthan100CV_TBIn3_FW_First25meta.csv") 
+
+# use the MaxQuant id as the "names" for the genes
+names(plsda_gene.name) <- proteinGroups_dros_Brain_FWW_extended$id[which(proteinGroups_dros_Brain_FWW_extended$id %in% plsda_first25_id)]
+# order the genes in the same order as the dotchart orders the proteins 
+plsda_gene.name <- as.vector(plsda_gene.name[as.character(plsda_first25_id)])
 
 dotchart(rev(treatment_plsda_less100$loadings[order(-abs(treatment_plsda_less100$loadings[,1])),1][1:25]), 
          pch = 19,
+         labels = plsda_gene.name,
          main = "First 25 Portein Groups driving Component 1 separation",
          color = "#5C66AF",
          xlab = "Component 1 Loadings")
 
-dotchart(rev(treatment_plsda_less100$loadings[order(-abs(treatment_plsda_less100$loadings[,1])),1][26:50]), 
+dotchart(rev(treatment_plsda_less100$loadings[order(-abs(treatment_plsda_less100$loadings[,1])),1][26:50]),
          pch = 19,
          main = "Next 25 Portein Groups driving Component 1 separation",
          color = "#5C66AF",
          xlab = "Component 1 Loadings")
 ```
 
-
+Extract the names of the top 50 proteins driving the differences between TBI and Control Samples.
 ```{r, echo=FALSE}
+
+PLSDA_loadings <- treatment_plsda_less100$loadings[order(-abs(treatment_plsda_less100$loadings[,1])),1]
+
+# Take top 50 proteins that are driving differences
 proteins_driving_TBIandCtrl <- rev(treatment_plsda_less100$loadings[order(-abs(treatment_plsda_less100$loadings[,1])),1][1:50])
 
+# Change names to numeric
 proteins_driving_TBIandCtrl_numeric <- as.numeric(names(proteins_driving_TBIandCtrl))
 
 proteins_driving_TBIandCtrl_meta <- proteinGroups_dros_Brain_FWW[which(proteinGroups_dros_Brain_FWW$id %in% names(proteins_driving_TBIandCtrl)),1:3]
 
-#write.csv(proteins_driving_TBIandCtrl_meta, "G:/Projects/Proteomics/DorsophilaHead_Experiment/Routput/Brain/NormProteins_PLSDA_BrainTBI.csv", row.names = FALSE)
+proteins_driving_TBIandCtrl_intensities <- t_FW_proteins_lessThan100CV[which(rownames(t_FW_proteins_lessThan100CV)  %in% as.character(proteins_driving_TBIandCtrl_meta$id)),]
+
+#Save in a csv
+#write.csv(proteins_driving_TBIandCtrl_meta, "G:/Projects/Proteomics/DorsophilaHead_Experiment/Routput/Brain/MeanNormProteins_PLSDA_BrainTBI.csv", row.names = FALSE)
+
+```
+
+Heatmaps of the top 50 proteins provided by PLSDA. 
+
+```{r,echo=FALSE}
+scaleRYG <- colorRampPalette(c("red","black","darkgreen"), space = "rgb")(31)
+
+ pheatmap(proteins_driving_TBIandCtrl_intensities[,1:28], 
+         color = scaleRYG,
+         scale = "row",
+         show_colnames = TRUE,
+         show_rownames = FALSE,
+         cluster_cols = FALSE,
+         drop_levels = TRUE,
+         main = "PLSDA Top 50 Proteins - Controls")
+
+ pheatmap(proteins_driving_TBIandCtrl_intensities[,29:57], 
+         color = scaleRYG,
+         scale = "row",
+         show_colnames = TRUE,
+         show_rownames = FALSE,
+         cluster_cols = FALSE,
+         drop_levels = TRUE,
+         main = "PLSDA Top 50 Proteins - TBI")
+ 
+```
+
+
+
+Creating time plots in base R for tracking abundance of a single protein across the time. 
+```{r TimePoint.Plots, echo=FALSE}
+# Aggregate all proteins across the replicates to produce average protein intensities
+average_time.point_lessThan100CV <- aggregate(FW_proteins_lessThan100CV[,7:ncol(FW_proteins_lessThan100CV)],
+                                list(FW_proteins_lessThan100CV$Samples), mean)
+
+std_time.point_lessThan100CV <- aggregate(FW_proteins_lessThan100CV[,7:ncol(FW_proteins_lessThan100CV)],
+                                list(FW_proteins_lessThan100CV$Samples), sd)
+
+t_average_time.point_lessThan100CV <- t(average_time.point_lessThan100CV[,-1])
+colnames(t_average_time.point_lessThan100CV) <- average_time.point_lessThan100CV[,1]
+
+t_std_time.point__lessThan100CV <- t(std_time.point_lessThan100CV[,-1])
+colnames(t_std_time.point__lessThan100CV) <- std_time.point_lessThan100CV[,1]
+
+# Aggregate proteins across the replicates to produce median protein intensities
+median_time.point_lessThan100CV <- aggregate(FW_proteins_lessThan100CV_noMeta,
+                                list(FW_proteins_lessThan100CV$Samples), median)
+
+# Reduced brain FW meta dataframe that includes information for only sample type removing replicate information
+brain_FW_meta_reduced <-FW_proteins_lessThan100CV[!duplicated(FW_proteins_lessThan100CV$Samples),1:6]
+
+# To brain FW meta dataframe add numeric hours and also fraction of 24 hours
+brain_FW_meta_reduced$hour.numeric <- rep(c(0,0.5,1,2,4,6,8,12,16,24),2)
+brain_FW_meta_reduced$RelativeDay.numeric <- rep(c(0, 0.02, 0.04, 0.08, 0.17, 0.25, 0.33, 0.50, 0.67, 1.00),2)
+
+brain_FW_meta$hour.numeric <- c(rep(0, 6), rep(0.5,6), rep(1,6), rep(2,5), rep(4,5), rep(6,6), rep(8,6), rep(12,6), rep(16, 6), rep(24,5))
+brain_FW_meta$RelativeDay.numeric <- c(rep(0, 6), rep(0.02,6), rep(0.04,6), rep(0.08,5), rep(0.17,5), rep(0.25,6), rep(0.33,6), rep(0.50,6), rep(0.67, 6), rep(1.00,5))
+
+# Create new object for time and labels for x-axis time
+Times <- brain_FW_meta_reduced$hour.numeric[1:10]
+labels_hours <- c("0","0.5","1","2","4","6","8","12","16","24")
+
+brain_FW_meta_reduced_ordered <- brain_FW_meta_reduced[order(brain_FW_meta_reduced$Samples),]
+
+brain_FW_meta_avg <- cbind(brain_FW_meta_reduced_ordered,average_time.point_lessThan100CV[,-1])
+colnames(brain_FW_meta_avg) <- c(colnames(brain_FW_meta_reduced_ordered),colnames(average_time.point_lessThan100CV[,-1]))
+
+# TimeSeries plot for average aggregate dataframe
+# n = n
+# x = average_time.point_lessThan100CV[,-1]
+# s = std_time.point_lessThan100CV[,-1]
+
+timeSeries_protein_plot <- function(n,x,s){
+  even_timepoints <- x[even,which(colnames(x) == n)]
+  odd_timepoints <- x[odd,which(colnames(x) == n)]
+  
+  even_std_timepoints <- s[even,which(colnames(s) == n)]
+  odd_std_timepoints <- s[odd,which(colnames(s) == n)]
+  
+  even_std_timepoints_minus <- c(even_timepoints[1], even_timepoints[2:length(even_timepoints)]-(even_std_timepoints))
+  
+  even_std_timepoints_plus <- c(even_timepoints[1], even_timepoints[2:length(even_timepoints)]+(even_std_timepoints))
+  
+  odd_std_timepoints_minus <- c(odd_timepoints[1], odd_timepoints[2:length(odd_timepoints)]-(odd_std_timepoints))
+  
+  odd_std_timepoints_plus <- c(odd_timepoints[1], odd_timepoints[2:length(odd_timepoints)]+(odd_std_timepoints))
+  
+  if(min(even_std_timepoints_minus) < min(odd_std_timepoints_minus)){
+    minimum_y_Intensity <- min(even_std_timepoints_minus)
+  }else{
+    minimum_y_Intensity <- min(odd_std_timepoints_minus)
+  }
+  
+  if(max(even_std_timepoints_plus) > max(odd_std_timepoints_plus)){
+    max_y_Intensity <- max(even_std_timepoints_plus)
+  }else{
+    max_y_Intensity <- max(odd_std_timepoints_plus)
+  }
+
+  par(mar = c(4,6,4,1), las  = 1, mgp = c(2.5,0.5,0), tcl =  -0.3, ps = 12)
+
+  plot(Times, even_timepoints,
+       ylim = c(minimum_y_Intensity,max_y_Intensity),
+       xlab = "Time (Hours)", ylab = paste("Log2(Intensity of ",n,")"),  
+       pcex=2, 
+       type = "b,c",
+       pch = 19,
+       lty = 2,
+       main = paste(n,"-", Gene.name$Gene.names, " ", Gene.name$Uniprot.ID),
+       xaxt = "n")
+  lines(Times,odd_timepoints, col = "red") 
+  axis(1,Times, labels = labels_hours)
+  legend("topright", legend = levels(factor(brain_FW_meta_reduced$Sample_Type)), 
+         lty = 1, col = c("red","black"))
+  
+  
+  arrows(Times, even_std_timepoints_plus, Times, even_std_timepoints_minus, length=0.05, angle=90, code=3)
+   
+  arrows(Times, odd_std_timepoints_plus, Times, odd_std_timepoints_minus, length=0.05, angle=90, code=3, color = "red")
+}
+
+
+
+# Data search for a with Uniprot.ID, extracting gene 
+Gene <- proteins_lessThan100CV_csv[which(proteins_lessThan100CV_csv$MaxQuant.ID == 4109),3]
+Gene.name <- proteins_lessThan100CV_csv[which(proteins_lessThan100CV_csv$Gene.names == "Rel"),]
+Gene.name <- proteins_lessThan100CV_csv[which(proteins_lessThan100CV_csv$Gene.names == "Obp56g"),]
+Gene.name <- proteins_lessThan100CV_csv[which(proteins_lessThan100CV_csv$Gene.names == "COX8"),]
+Gene.name <- proteins_lessThan100CV_csv[grep("Drs",proteins_lessThan100CV_csv$Gene.names),]
+Gene.name <- proteins_lessThan100CV_csv[which(proteins_lessThan100CV_csv$Gene.names == "Gpdh"),]
+Gene.name <- proteins_lessThan100CV_csv[grep("A4VA49",proteins_lessThan100CV_csv$Uniprot.ID),]
+
+
+protein_id <- Gene.name$MaxQuant.ID
+n <- protein_id
+timeSeries_protein_plot(n,average_time.point_lessThan100CV[,-1],std_time.point_lessThan100CV[,-1])
+# timeSeries_protein_plot(n,median_time.point_lessThan100CV) #or median_time.point_lessThan100CV
+
+
+ggplot(brain_FW_meta_avg, aes(x= hour.numeric, y=brain_FW_meta_avg[,which(colnames(brain_FW_meta_avg) == protein_id)], group = Sample_Type)) +
+  geom_point() +
+  geom_line() +
+  geom_errorbar(aes(ymin=brain_FW_meta_avg[,which(colnames(brain_FW_meta_avg) == protein_id)]-s[,which(colnames(s) == protein_id)], ymax=brain_FW_meta_avg[,which(colnames(brain_FW_meta_avg) == protein_id)]+s[,which(colnames(s) == protein_id)]),
+                alpha = 0.2,
+                width = 0,
+                size= 10,
+                color= "#6D696F")+
+    theme_light()+
+    labs(title = paste(n,"-", Gene.name$Gene.names, " ", Gene.name$Uniprot.ID),
+       x = "Time (hr)", y = "Log2(Intensity)")
+```
+
+#### T.test
+Calculate p.values from a t.test and create a dataframe for each time point. 
+```{r t.test, echo=FALSE}
+# use apply function to calculate the p.value from a t.test that looks at TBI samples and coordinated controls.
+# use the tryCatch() to run function and output NA where it can not perform t.test.
+t.test_30.min <- apply(cbind(t_FW_proteins_lessThan100CV[,32:34], t_FW_proteins_lessThan100CV[,4:6]),1,function(x) {tryCatch(t.test(x[1:3], x[4:6])$p.value,error = function(e){NA})})
+t.test_1.hr <- apply(cbind(t_FW_proteins_lessThan100CV[,35:37], t_FW_proteins_lessThan100CV[,7:9]),1,function(x) {tryCatch(t.test(x[1:3], x[4:6])$p.value,error = function(e){NA})})
+t.test_2.hr <- apply(cbind(t_FW_proteins_lessThan100CV[,38:40], t_FW_proteins_lessThan100CV[,10:11]),1,function(x) {tryCatch(t.test(x[1:3], x[4:6])$p.value,error = function(e){NA})})
+t.test_4.hr <- apply(cbind(t_FW_proteins_lessThan100CV[,41:43], t_FW_proteins_lessThan100CV[,12:13]),1,function(x) {tryCatch(t.test(x[1:3], x[4:6])$p.value,error = function(e){NA})})
+t.test_6.hr <- apply(cbind(t_FW_proteins_lessThan100CV[,44:46], t_FW_proteins_lessThan100CV[,14:16]),1,function(x) {tryCatch(t.test(x[1:3], x[4:6])$p.value,error = function(e){NA})})
+t.test_8.hr <- apply(cbind(t_FW_proteins_lessThan100CV[,47:49], t_FW_proteins_lessThan100CV[,17:19]),1,function(x) {tryCatch(t.test(x[1:3], x[4:6])$p.value,error = function(e){NA})})
+t.test_12.hr <- apply(cbind(t_FW_proteins_lessThan100CV[,50:52], t_FW_proteins_lessThan100CV[,20:22]),1,function(x) {tryCatch(t.test(x[1:3], x[4:6])$p.value,error = function(e){NA})})
+t.test_16.hr <- apply(cbind(t_FW_proteins_lessThan100CV[,53:55], t_FW_proteins_lessThan100CV[,23:25]),1,function(x) {tryCatch(t.test(x[1:3], x[4:6])$p.value,error = function(e){NA})})
+t.test_24.hr <- apply(cbind(t_FW_proteins_lessThan100CV[,56:57], t_FW_proteins_lessThan100CV[,26:28]),1,function(x) {tryCatch(t.test(x[1:3], x[4:6])$p.value,error = function(e){NA})})
+
+# concatonate dataframes
+t.test_TBI <- data.frame(Time.30.min = as.numeric(t.test_30.min), 
+                       Time.1.hr = as.numeric(t.test_1.hr), 
+                       Time.2.hr = as.numeric(t.test_2.hr), 
+                       Time.4.hr = as.numeric(t.test_4.hr),
+                       Time.6.hr = as.numeric(t.test_6.hr),
+                       Time.8.hr = as.numeric(t.test_8.hr),
+                       Time.12.hr = as.numeric(t.test_12.hr),
+                       Time.16.hr = as.numeric(t.test_16.hr),
+                       Time.24.hr = as.numeric(t.test_24.hr))
+row.names(t.test_TBI) <- row.names(t_FW_proteins_lessThan100CV)
+
+# Transform dataframe into a matrix for plotting purposes
+t.test_TBI.matrix <- as.matrix(t.test_TBI)
+# Adjust p.values using "hochberg" method
+t.test_TBI.matrix.adjusted <- p.adjust(t.test_4.hr, method = "hochberg")
+
+# What is distribution of p-values for t.test stats
+hist(t.test_TBI.matrix,
+     breaks = 100,
+     main = "Distribution of p-values across time points",
+     xlab = "p-value",
+     xlim = c(0,1),
+     col= "darkmagenta")
+
+abline(v=0.05,
+       col="royalblue",
+       lwd=2)
+
+# boxplot to look at individual timepoints
+boxplot(t.test_TBI.matrix)
+
+# Summary provides quantiles and the range of p.values
+summary(t.test_TBI.matrix)
+summary(t.test_30.min)
+
+# Table provides the number of significant values in matrix
+table(t.test_TBI.matrix < 0.05)
+table(t.test_4.hr < 0.05)
+
+```
+
+#### ANOVA
+Anova calculation on top 50 proteins, averaged time points, and individual time points. 
+```{r anvoa, echo=FALSE}
+# Anova analysis for samples, create separate data frames for the anova output 
+anova.df_top50 <- data.frame(id = as.numeric(), 
+                       Anova.p.Samply_Type = as.numeric(), 
+                       Anova.p.time = as.numeric(), 
+                       Anova.p.Samply_Type.Time = as.numeric(),
+                       na = as.character(), 
+                       Loading = as.numeric())
+
+anova.df_allproteins <- data.frame(id = as.numeric(), 
+                       Anova.p.Samply_Type = as.numeric(), 
+                       Anova.p.time = as.numeric(), 
+                       Anova.p.Samply_Type.Time = as.numeric(),
+                       na = as.character(), 
+                       Loading = as.numeric())
+
+anova.df_averagedProteins <- data.frame(id = as.numeric(), 
+                       Anova.p.Samply_Type = as.numeric(), 
+                       Anova.p.time = as.numeric(), 
+                       Anova.p.Samply_Type.Time = as.numeric(),
+                       na = as.character(), 
+                       Loading = as.numeric())
+
+# Transpose aggregated averaged protein intensities for those with CV less than 100
+t_average_time.point_lessThan100CV <- t(average_time.point_lessThan100CV[,-1])
+# rename colNames
+colnames(t_average_time.point_lessThan100CV) <- average_time.point_lessThan100CV$Group.1
+
+# t_median_time.point_lessThan100CV <- t(median_time.point_lessThan100CV[,-1])
+# colnames(t_median_time.point_lessThan100CV) <- median_time.point_lessThan100CV$Group.1
+```
+
+Heatmap of Averaged Time Points for proteins that have CV less than 100
+```{r,echo=FALSE}
+
+scaleRYG <- colorRampPalette(c("red","black","darkgreen"), space = "rgb")(31)
+
+ pheatmap(t_average_time.point_lessThan100CV, 
+         color = scaleRYG, 
+         show_colnames = TRUE,
+         show_rownames = FALSE,
+         scale = "row",
+         drop_levels = TRUE,
+         main = "Averaged Protein Intensities")
+
+
+```
+
+
+Apply anova for to top 50 proteins, averaged time points, and individual time points.
+
+```{r, echo=FALSE}
+
+# Create a for loop for the anova analysis on each protein in PLSDA top 50
+for(i in 1:nrow(proteins_driving_TBIandCtrl_meta)){
+  n <- proteins_driving_TBIandCtrl_meta$id[i]
+  
+  aov_LFQ_lessThan100CV_top50 <-aov(t_average_time.point_lessThan100CV[which(rownames(t_average_time.point_lessThan100CV)==n),] ~  brain_FW_meta_reduced$Sample_Type * brain_FW_meta_reduced$hour.numeric)
+  
+  anova.df_top50[i,] <- c(n,summary(aov_LFQ_lessThan100CV_top50)[[1]][["Pr(>F)"]],proteins_driving_TBIandCtrl[as.character(n)][[1]])
+}
+
+# Create a for loop for the anova analysis for all protein
+for(i in 1:nrow(t_FW_proteins_lessThan100CV)){
+  n <- as.numeric(rownames(t_FW_proteins_lessThan100CV)[i])
+  
+  aov_LFQ_lessThan100CV_all <- aov(t_FW_proteins_lessThan100CV[which(rownames(t_FW_proteins_lessThan100CV)==n),] ~  brain_FW_meta$Sample_Type * brain_FW_meta$hour.numeric)
+  
+  anova.df_allproteins[i,] <- c(n,summary(aov_LFQ_lessThan100CV_all)[[1]][["Pr(>F)"]],PLSDA_loadings[as.character(n)][[1]])
+}
+
+# Create a for loop for the anova analysis for averaged time points
+for(i in 1:nrow(t_average_time.point_lessThan100CV)){
+  n <- as.numeric(rownames(t_average_time.point_lessThan100CV)[i])
+  
+  aov_LFQ_lessThan100CV_averaged <- aov(t_average_time.point_lessThan100CV[which(rownames(t_average_time.point_lessThan100CV)==n),] ~  brain_FW_meta_reduced_ordered$Sample_Type * brain_FW_meta_reduced_ordered$hour.numeric)
+  
+  anova.df_averagedProteins[i,] <- c(n,summary(aov_LFQ_lessThan100CV_averaged )[[1]][["Pr(>F)"]],PLSDA_loadings[as.character(n)][[1]])
+}
+
+# Summary of anova statistics
+summary(aov_LFQ_lessThan100CV_top50)
+summary(aov_LFQ_lessThan100CV_all)
+summary(aov_LFQ_lessThan100CV_averaged)
+
+table(anova.df_allproteins$Anova.p.Samply_Type < 0.05)
+
+hist(anova.df_top50$Anova.p.Samply_Type,
+     breaks = 100,
+     main = "Distribution of p-values across time points",
+     xlab = "p-value",
+     xlim = c(0,1),
+     col= "darkmagenta")
+
+abline(v=0.05,
+       col="royalblue",
+       lwd=2)
+
+p1<- ggplot(data = anova.df_top50, aes(x=Anova.p.Samply_Type)) +
+  geom_histogram(color="black",
+                 fill="#8a238b", 
+                 binwidth=.01,  
+                 alpha = 0.8,  
+                 position="identity")+
+  ylim(0, 6)+
+  theme_light()
+  
+p2 <- ggplot(data = anova.df_top50, aes(x=Anova.p.time)) +
+  geom_histogram(color="black", 
+                 fill="#8a238b", 
+                 binwidth=.01, 
+                 alpha = 0.8, 
+                 position="identity") +
+  ylim(0, 6) +
+  theme_light()
+
+p3 <- ggplot(data = anova.df_top50, aes(x=Anova.p.Samply_Type.Time)) +
+  geom_histogram(color="black", 
+                 fill="#8a238b", 
+                 binwidth=.01, 
+                 alpha = 0.8, 
+                 position="identity") +
+  ylim(0, 6) +
+  theme_light()
+
+ml <- plot_grid(p1,p2,p3, ncol = 1)
+ggsave("G:/Projects/Proteomics/DorsophilaHead_Experiment/Figures/Brains_anova_top50.pdf", ml)
+
+```
+
+```{r,echo=FALSE}
+hist(anova.df_allproteins$Anova.p.Samply_Type,
+          breaks = 100,
+     main = "Distribution of p-values across time points",
+     xlab = "p-value",
+     xlim = c(0,1),
+     col= "darkmagenta")
+
+hist(anova.df_allproteins$Anova.p.time,
+     breaks = 100,
+     main = "Distribution of p-values across time points",
+     xlab = "p-value",
+     xlim = c(0,1),
+     col= "darkmagenta")
+
+hist(anova.df_allproteins$Anova.p.Samply_Type.Time,
+     breaks = 100,
+     main = "Distribution of p-values across time points",
+     xlab = "p-value",
+     xlim = c(0,1),
+     col= "darkmagenta")
+
+
+p1<- ggplot(data = anova.df_allproteins, aes(x=Anova.p.Samply_Type)) +
+  geom_histogram(color="black",
+                 fill="#c79ae2", 
+                 binwidth=.01,  
+                 alpha = 0.8,  
+                 position="identity")+
+  ylim(0, 150)+
+  theme_light()
+  
+p2 <- ggplot(data = anova.df_allproteins, aes(x=Anova.p.time)) +
+  geom_histogram(color="black", 
+                 fill="#c79ae2", 
+                 binwidth=.01, 
+                 alpha = 0.8, 
+                 position="identity") +
+  ylim(0, 150) +
+  theme_light()
+
+p3 <- ggplot(data = anova.df_allproteins, aes(x=Anova.p.Samply_Type.Time)) +
+  geom_histogram(color="black", 
+                 fill="#c79ae2", 
+                 binwidth=.01, 
+                 alpha = 0.8, 
+                 position="identity") +
+  ylim(0, 150) +
+  theme_light()
+
+ml <- plot_grid(p1,p2,p3, ncol = 1)
+ggsave("G:/Projects/Proteomics/DorsophilaHead_Experiment/Figures/Brainsp2.pdf", ml)
+  
+```
+
+```{r,echo=FALSE}
+
+hist(anova.df_averagedProteins$Anova.p.Samply_Type,
+          breaks = 100,
+     main = "Distribution of p-values across time points",
+     xlab = "p-value",
+     xlim = c(0,1),
+     col= "darkmagenta")
+
+hist(anova.df_averagedProteins$Anova.p.time,
+     breaks = 100,
+     main = "Distribution of p-values across time points",
+     xlab = "p-value",
+     xlim = c(0,1),
+     col= "darkmagenta")
+
+hist(anova.df_averagedProteins$Anova.p.Samply_Type.Time,
+     breaks = 100,
+     main = "Distribution of p-values across time points",
+     xlab = "p-value",
+     xlim = c(0,1),
+     col= "darkmagenta")
+
+p1<- ggplot(data = anova.df_averagedProteins, aes(x=Anova.p.Samply_Type)) +
+  geom_histogram(color="black",
+                 fill="#cf60f3", 
+                 binwidth=.01,  
+                 alpha = 0.8,  
+                 position="identity")+
+  ylim(0, 150)+
+  theme_light()
+  
+p2 <- ggplot(data = anova.df_averagedProteins, aes(x=Anova.p.time)) +
+  geom_histogram(color="black", 
+                 fill="#cf60f3", 
+                 binwidth=.01, 
+                 alpha = 0.8, 
+                 position="identity") +
+  ylim(0, 150) +
+  theme_light()
+
+p3 <- ggplot(data = anova.df_averagedProteins, aes(x=Anova.p.Samply_Type.Time)) +
+  geom_histogram(color="black", 
+                 fill="#cf60f3", 
+                 binwidth=.01, 
+                 alpha = 0.8, 
+                 position="identity") +
+  ylim(0, 150) +
+  theme_light()
+
+ml <- plot_grid(p1,p2,p3, ncol = 1)
+ggsave("G:/Projects/Proteomics/DorsophilaHead_Experiment/Figures/Brains_anova_averagedProteins.pdf", ml)
+# matching_id <- which(LFQheads_complete$id %in% df$id)
+# matching_proteins_genes <- LFQheads_complete[matching_id,c(1:3)]
+# 
+# pls_top_proteins <- merge(matching_proteins_genes,df, by.y= "id")
+
+#write.csv(pls_top_proteins, file = "G:/Projects/Proteomics/DorsophilaHead_Experiment/Routput/Brain/20190325pls_top_protein_gene_id_aov_Brain_completeCase.csv", row.names = FALSE)
+
+# for(i in 1:length(ranked_pls_loading1)){
+#   n = pls_top_proteins[i,1]
+#   
+#   pdf(paste("G:/Projects/Proteomics/DorsophilaHead_Experiment/Figures/Brains/",n,"_timeseriesplot.pdf"), useDingbats = FALSE)
+#   timeSeries_protein_plot(n)
+#   dev.off()
+# }
+
+
+# #individual anova calculations 
+# anova1 <- aov(LFQheads_LOG2[which(rownames(LFQheads_LOG2)==4034),] ~  head_meta$Sample_Type * head_meta$time)
+# summary(anova1)
+# 
+# anova5606 <- aov(LFQheads_LOG2[which(rownames(LFQheads_LOG2)==5606),] ~  head_meta$Sample_Type * head_meta$time)
+# summary(anova5606)
+# 
+# 
+# anova2535 <- aov(LFQheads_LOG2[which(rownames(LFQheads_LOG2)==2535),] ~  head_meta$Sample_Type * head_meta$time)
+# summary(anova2535)
+
+```
+
+
+```{r, echo=FALSE}
+# Extract aggregated averaged Controls and aggregated average TBI samples
+Controls_TbI_averaged_LessThan100CV <- t_average_time.point_lessThan100CV[,odd]
+TBI_averaged_LessThank100CV <- t_average_time.point_lessThan100CV[,even]
+# Calculate averaged FC
+FC_TBI_CTRL_averaged_LessThan100CV <- TBI_averaged_LessThank100CV - Controls_TbI_averaged_LessThan100CV
+
+
+
+
+ TBI_CTRL_LessThan100CV_timepoint <- mean_normalized_FW_byProtein_sepTBIandCTRL[c(1:9,29:37),-c(1:6)]
+# rownames(TBI_CTRL_LessThan100CV_first3timepoints) <- mean_normalized_FW_byProtein_sepTBIandCTRL$unique[c(1:9,29:37)]
+# 
+# 
+# TBI_CTRL_LessThan100CV_first3timepoints[10:18,]-TBI_CTRL_LessThan100CV_first3timepoints[1:9,]
+# t_FC_TBI_CTRL_LessThan100CV_first3timepoints <- t(FC_TBI_CTRL_LessThan100CV_first3timepoints)
+
+colnames(Controls_TbI_averaged_LessThan100CV) <- c("0","0.5","1","2","4","6","8","12","16","24")
+colnames(TBI_averaged_LessThank100CV) <- c("0","0.5","1","2","4","6","8","12","16","24")
+colnames(FC_TBI_CTRL_averaged_LessThan100CV) <- c("time.0",colnames(t.test_TBI.matrix))
+
+```
+
+
+```{r, echo=FALSE}
+hist(t_FC_TBI_CTRL_LessThan100CV_first3timepoints,
+     breaks = 100,
+     main = "Fold Change of Averaged Intensities",
+     xlab = "Fold Change relative to Control",
+     xlim = c(-2,2),
+     col= "darkmagenta")
+
+ pheatmap(t_FC_TBI_CTRL_LessThan100CV_first3timepoints, 
+         color = inferno(10), 
+         show_colnames = TRUE,
+         show_rownames = FALSE,
+         drop_levels = TRUE,
+         main = "FC of Proteins with greater than 100% CV")
+
+ pheatmap(FC_TBI_CTRL_averaged_LessThan100CV[,1:3], 
+         color = inferno(10), 
+         show_colnames = TRUE,
+         show_rownames = FALSE,
+         drop_levels = TRUE,
+         main = "FC of Proteins with greater than 100% CV") 
+ 
+```
+
+
+```{r, echo=FALSE}
+FC_timeSeries_protein_plot <- function(n){
+  FC_timepoints <- FC_TBI_CTRL_averaged_LessThan100CV[which(rownames(FC_TBI_CTRL_averaged_LessThan100CV) == n),]
+
+    if(abs(min(FC_timepoints)) < max(FC_timepoints)){
+        max_y_Intensity <- max(FC_timepoints)
+      }else{
+        max_y_Intensity <- abs(min(FC_timepoints))
+      }
+    if(max(FC_timepoints) > abs(min(FC_timepoints))){
+        min_y_Intensity <- -abs(max(FC_timepoints))
+      }else{
+        min_y_Intensity <- min(FC_timepoints)
+        }
+  
+    # minimum_y_Intensity <- min(FC_timepoints)
+    # 
+    # max_y_Intensity <- max(FC_timepoints)
+
+  
+  #par(mfrow = c(1,2))
+  #layout(matrix(c(1,1), 1, 2, byrow = TRUE), widths=c(2,1), heights=c(1,2))
+  par(mar = c(4,6,4,1), las  = 1, mgp = c(2.5,0.5,0), tcl =  -0.3, ps = 12)
+  #plot for hours
+  plot(Times, FC_timepoints,
+       ylim = c(min_y_Intensity,max_y_Intensity),
+       xlab = "Time (Hours)", ylab = paste("Fold Change TBI Intensity relative to Control ",n,")"),  
+       pcex=2, 
+       type = "b,c",
+       pch = 19,
+       lty = 2,
+       main = paste(n,"-", Gene.name$Gene.names, " ", Gene.name$Uniprot.ID),
+       xaxt = "n")
+  axis(1,Times, labels = labels_hours)
+}
+
+FC_timeSeries_protein_plot(n)
+
+Controls_TbI_averaged_LessThan100CV_id <- cbind(rownames(Controls_TbI_averaged_LessThan100CV), Controls_TbI_averaged_LessThan100CV)
+TBI_averaged_LessThank100CV_id <- cbind(rownames(TBI_averaged_LessThank100CV), TBI_averaged_LessThank100CV)
+FC_TBI_CTRL_averaged_LessThan100CV_id <- cbind(rownames(FC_TBI_CTRL_averaged_LessThan100CV), FC_TBI_CTRL_averaged_LessThan100CV)
+
+colnames(Controls_TbI_averaged_LessThan100CV_id) <- c("Uniprot.ID","0","0.5","1","2","4","6","8","12","16","24")
+colnames(TBI_averaged_LessThank100CV_id) <- c("Uniprot.ID","0","0.5","1","2","4","6","8","12","16","24")
+colnames(FC_TBI_CTRL_averaged_LessThan100CV_id) <- c("Uniprot.ID","0","0.5","1","2","4","6","8","12","16","24")
+
+
+```
+
+#### MetaCycle
+```{r, echo=FALSE}
+#Write a table for meta2d analysis
+write.table(FC_TBI_CTRL_averaged_LessThan100CV_id, file="C:/Users/etrujillo2/Documents/Projects/.Rproj.user/Drosophila-Traumatic-Brain-Injury/FC_CONTROLS_TBI_averagedBrain_LessThan100CV.txt",
+            sep="\t", quote=FALSE, row.names=FALSE)
+
+meta2d(infile="C:/Users/etrujillo2/Documents/Projects/.Rproj.user/Drosophila-Traumatic-Brain-Injury/FC_CONTROLS_TBI_averagedBrain_LessThan100CV.txt", filestyle="txt",outdir="C:/Users/etrujillo2/Documents/Projects/.Rproj.user/Drosophila-Traumatic-Brain-Injury/example_Drosophila/", timepoints=c(0,0.5,1,2,4,6,8,12,16,24),
+       cycMethod="LS", outIntegration="noIntegration")
+
+
+# Individual replicate analysis data
+Controls_EachRep_LessThan100CV <- mean_normalized_FW_byProtein_sepTBIandCTRL[1:28,]
+TBI_EachRep_LessThan100CV <- mean_normalized_FW_byProtein_sepTBIandCTRL[29:nrow(mean_normalized_FW_byProtein_sepTBIandCTRL),]
+
+t_Controls_EachRep_LessThan100CV <- t(Controls_EachRep_LessThan100CV[,-c(1:6)])
+colnames(t_Controls_EachRep_LessThan100CV) <- Controls_EachRep_LessThan100CV$Samples
+t_Controls_EachRep_LessThan100CV <- cbind(rownames(t_Controls_EachRep_LessThan100CV),t_Controls_EachRep_LessThan100CV)
+colnames(t_Controls_EachRep_LessThan100CV) <- c("Uniprot.ID", colnames(t_Controls_EachRep_LessThan100CV[,-1]))
+
+write.table(t_Controls_EachRep_LessThan100CV, file="IndivControls_LessThan100CV.txt",
+            sep="\t", quote=FALSE, row.names=FALSE)
+
+meta2d(infile="IndivControls_LessThan100CV.txt", filestyle="txt",outdir="example_Drosophila", timepoints= c(rep(c(0,0.5,1),each=3), rep(c(2,4), each=2),rep(c(6,8,12,16,24),each=3)),cycMethod="LS", outIntegration="noIntegration")
+
+
+```
+
+Clustering will be implemnted on the proteomics data set that that has been organized such that control samples are the first and TBI samples are following.
+
+Prior to fuzzy clustering the variation for each protein plotted. 
+```{r mfuzz_completeCases, echo=FALSE}
+
+z = imputed_hemo_reorder # change accordingly to use in mfuzzy setup funtions
+
+exprValues.s_bayesian <- fuzzyprep_usepreviousImputation(z)
+```
+
+
+```{r coexpression_Relish ,echo=FALSE}
+# save(Brains_coexp, 
+#      file = "C:/Users/etrujillo2/Documents/Projects/.Rproj.user/Drosophila-Traumatic-Brain-Injury/Correlation_Proteins_TBIBrain_Replicates123.Rdata")
+# 
+# Brains_coexp <- cor(FW_proteins_lessThan100CV_matrix)
+
+load("C:/Users/etrujillo2/Documents/Projects/.Rproj.user/Drosophila-Traumatic-Brain-Injury/Correlation_Proteins_TBIBrain_Replicates123.Rdata")
+
+filter_row <- rowSums(abs(Brains_coexp) > 0.7 & Brains_coexp != 1) > 0
+
+pdf("C:/Users/etrujillo2/Documents/Projects/.Rproj.user/Drosophila-Traumatic-Brain-Injury/heatmap_coexp.pdf", height= 50, width = 50)
+pheatmap(Brains_coexp[filter_row, filter_row])
+dev.off()
+
+# filter_coexp <- abs(Brains_coexp) > 0.6
+# table(filter_coexp)[2]^(1/2)
+
+# hist(Brains_coexp)
+# 
+# Brains_coexp[filter_coexp]
+
+filter_coexpression <- Brains_coexp[filter_row, filter_row]
+relish_coexpression <- filter_coexpression[which(rownames(filter_coexpression) == 4109),]
+
+hist(relish_coexpression)
+filter_coexp_rel <- abs(relish_coexpression) > 0.6
+
+relish_coexpression <- relish_coexpression[filter_coexp_rel]
+names(relish_coexpression)
+
+for(i in 1:length(names(relish_coexpression))){
+    MaxQuant_id <- names(relish_coexpression)[i]
+
+    Gene <- proteins_lessThan100CV_csv[which(proteins_lessThan100CV_csv$MaxQuant.ID == MaxQuant_id),3]
+
+    x <- FW_proteins_lessThan100CV_matrix[,which(colnames(FW_proteins_lessThan100CV_matrix) == 4109)]
+    y <- FW_proteins_lessThan100CV_matrix[,which(colnames(FW_proteins_lessThan100CV_matrix) == MaxQuant_id)]
+
+  plot(x,y,
+       col= "red",
+       pch = 16,
+       main = paste("Co-expression analysis\n Relish vs ",Gene),
+       xlab = "Relish", ylab = Gene)
+  
+}
+
+
 
 ```

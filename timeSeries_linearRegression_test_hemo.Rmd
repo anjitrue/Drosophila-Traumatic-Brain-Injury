@@ -1,0 +1,167 @@
+---
+title: "Time Series Example - Dros"
+author: "Anji Trujillo"
+date: "February 5, 2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+require(knitr)
+opts_knit$set(root.dir = "E:/Projects/Proteomics/")
+knitr::opts_chunk$set(root.dir = "E:/Projects/Proteomics/", warning = FALSE, message = FALSE)
+```
+
+
+```{r install_packages, echo=FALSE}
+library(ggplot2)
+library(devtools)
+library(pcaMethods)
+library(reshape2)
+library(factoextra)
+library(dplyr)
+```
+
+# Load data
+Load hemolymph data contains 9215 protein before any filtering and reducing to complete cases only.
+```{r load_data, echo=FALSE}
+proteinGroups_dros_hemo <- read.csv("E:/Projects/Proteomics/DorsophilaHead_Experiment/txt_hemo_plusFrac/proteinGroups.csv", header = TRUE, sep = ",", stringsAsFactors = FALSE)
+
+cat(paste0("Number of protein groups in Hemolymph Data before any filtering of missing measurements: ", nrow(proteinGroups_dros_hemo))) #, "\n", "Number of columns: ", ncol(proteinGroups_dros_hemo)))
+
+```
+
+Functions used in cleaning up the data include:  
+1. subsetLFQ (subsets columns to include protein id's, id number provided by max quant, and gene name)  
+2. remove.features.50percentcuttoff (filters data set, by removing protein groups that are missing over 50% of their measuremnts)  
+
+```{r functions, echo=FALSE}
+subsetLFQ <- function(x){
+  y <- proteinGroups_dros_hemo[,which(names(proteinGroups_dros_hemo) %in% c("Protein.IDs", "id","Gene.names"))]
+  z <- x[,grep("LFQ.intensity",names(x))]
+  z[z == 0] <- NA
+  x <- data.frame(y,z)
+  x <- x[,-grep("Frac",names(x))]
+  return(x)
+}
+
+remove.features.50percentcuttoff <- function (x) {
+  features.missing = rowMeans(is.na(x)) 
+  print(paste0("Number of protein groups that have over 50% missing measurements: ",sum(features.missing > 0.50))) 
+  features.missing.50more = rownames(x)[features.missing > 0.50] 
+  
+  keep.features = which(features.missing <= 0.50) 
+  print(paste0("Protein groups that pass the 50% filteration: ", length(keep.features)))
+  names(keep.features) = keep.features 
+  
+  remove.features = which(features.missing > 0.50)
+  print(paste0("Number of protein groups removed from dataset: ", length(remove.features)))
+  names(remove.features) = remove.features
+  
+  filtered = x[-which(rownames(x) %in% remove.features),]
+  return(filtered)
+}
+
+```
+
+Implement the functions created to subset dataset. 
+```{r filter_hemo, include=TRUE}
+#subset proteins to only protein.Id, gene.id, id, and LFQ not including the fractionated sample
+proteinGroups_dros_hemo <- subsetLFQ(proteinGroups_dros_hemo)
+
+#how many missing values in protein groups dataframe
+sum(is.na(proteinGroups_dros_hemo)) #28143
+
+#remove protein groups missing more than 50% of the measurments
+filtered_dros_hemo_50percent <- remove.features.50percentcuttoff(proteinGroups_dros_hemo)
+rownames(filtered_dros_hemo_50percent) <- filtered_dros_hemo_50percent$id
+#keep only the complete cases
+complete.case_filtered_dros_hemo <- filtered_dros_hemo_50percent[complete.cases(filtered_dros_hemo_50percent),]
+
+```
+Number of protein groups in Hemolymph Data that are complete cases and include a measurement for each sample: `r nrow(complete.case_filtered_dros_hemo)`
+
+In order to perform statistcal analysis, the dataset will be paired down to the intensity measurement output by MaxQuant.The data will be transformed into wide format for testing linear regression assumptions. 
+```{r subset_data, include=TRUE}
+#subset matrix containing only samples that have been filtered 50% threshold
+hemo_50percent <- as.matrix(filtered_dros_hemo_50percent[,c(4:11)])
+
+#### Format Data for complete cases ####
+#subset matrix containing only samples that have no NA values
+hemo_complete.case <- as.matrix(complete.case_filtered_dros_hemo[,c(4:11)])
+
+set.seed(123)
+sample.series <- data.frame(hemo_complete.case[sample(nrow(hemo_complete.case),100),])
+proteins.id <- rownames(sample.series)
+sample.series$protein.ID <- proteins.id
+
+#Transform data into wide form, using protein.ID as the id.variable
+sample.series.wide <- melt(sample.series, 'protein.ID')
+colnames(sample.series.wide) <- c("protein.ID", "sample.ID", "Intensity")
+sample.series.wide$Log2.Intensity <- log2(sample.series.wide$Intensity)
+sample.series.wide$time <- c(rep(1,200), rep(4, 200), rep(8,200), rep(24, 200))
+sample.series.wide$type <- rep(c(rep("Control", 100), rep("TBI", 100)),4)
+
+```
+
+Building a linear regression model requires conforming to certain assumptions first.  
+
+Assumption 1  
+A regression model is linear in parameters   
+
+Assumption 2  
+The mean of the residuals is zero  
+
+Assumption 3  
+Homoscedasticity of residuals or equal variance  
+
+Assumption 4  
+No autocorrelation of residuals  
+
+
+# Assumption 1
+A regression model is linear in parameters
+
+```{r assmumption1, echo=FALSE}
+```
+
+#Assumption 2
+[The mean of the residuals is zero](https://www.statisticshowto.datasciencecentral.com/residual/) 
+
+To check if the mean of the residuals is zero(or very close) use the lm function and extract residuals ($residuals)
+
+The lm() function creates a regression from the formula Y~X+X2. The predictor(independent) variable will X and the dependent variable (the one we are trying to predict) will be Y. In the hemolymph Dros example X = Sample.ID and Y = Intensity. 
+
+When performing a linear regression the line of best fit defines the predicted relationship between the independent and dependent variables. The data points don't usually fall on the regression equation line, thus the vertical distance between the data point and the regression line is called the residual or error. Each point has an "error" if the point does not fall exactly on the regression line.  
+
+Residual = Observed value - predicted value  
+
+The sum of the residuals always equals zero, suggsting the regression line is the line of "best fit". The [math](https://math.stackexchange.com/questions/494181/why-the-sum-of-residuals-equals-0-when-we-do-a-sample-regression-by-ols) can be found here. 
+
+```{r assumption2, include = TRUE}
+
+mod_sample.ID <- lm(Log2.Intensity~sample.ID, sample.series.wide)
+hist(mod_sample.ID$residuals)
+mean(mod_sample.ID$residuals)
+```
+#Assumption 3
+[Homoscedasticity of residuals or equal variance](https://www.statisticshowto.datasciencecentral.com/homoscedasticity/)  
+
+Also known as homegenity of variance, simply summarized means "having the same scatter." For homoscedasticity to exist in a data set, the points must be about the same distance from the regression line. Opposite to homoscedasticity is heteroscedasticity, where data points are scattered with a wide variety of distances from the regression line. NOTE! "Distance" is what you visually assess from plotting the scatter, while variance must be calculated and can not be eyeballed on a graph!
+
+How to check?  
+After building the regrssion model, set par(mfrow = c(2,2)), the plot the model plot
+```{r assumption3, include = TRUE}
+par(mfrow = c(2,2)) # set 2 rows and 2 column plot layout
+
+plot(mod_sample.ID)
+
+```
+
+The general rule of thumb is: If the ratio of the larges variance to the smallest variance is 1.5 or below, the data is homoscedastic. 
+
+The assumption of equal variance assumes that different samples have the same variance despite what population they originate. This assumption holds true in other statistical test such as ANOVA (analysis of variance), Student's T-test. Checking for equal variance has a significan impact on results.
+
+Top left plot - This scatter plot, plots the residuals("error for each data") on the y-axis and the fitted values (estimated responses) on the x axis. 
+
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.

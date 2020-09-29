@@ -571,7 +571,7 @@ timeSeries_protein_plot <- function(n){
 
 #plot the time series plot for individual proteins
 
-n <- 5331#LFQheads_complete[which(LFQheads_complete$id == n),]
+n <- 4109#LFQheads_complete[which(LFQheads_complete$id == n),]
 timeSeries_protein_plot(n)
 
 #ks.test(LFQheads_LOG2[which(rownames(LFQheads_LOG2)==n),even[10:17]],LFQheads_LOG2[which(rownames(LFQheads_LOG2)==n), odd[10:17]])

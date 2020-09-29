@@ -579,3 +579,13 @@ ggplot(proteinGroups, aes(x=ProteinID, y=SequenceCoverage) ) + geom_bin2d() +the
 
 ggplot(proteinGroups, aes(x=ProteinID, y=SequenceCoverage) ) + geom_density_2d()
 
+
+pdf("E:/Projects/Proteomics/DorsophilaHead_Experiment/Figures/PCA_polygons_hemo.pdf", useDingbats = F)
+par(mar = c(4,6,4,1), las  = 1, mgp = c(2.5,0.5,0), tcl =  -0.3, ps = 12)
+plot(pca_complete.case_hemolog2$x, col= colors[(2:3)][as.factor(hemo_meta$Sample_Type)],xlab = "PC1\n33.07%", ylab="PC2\n22.53%", pch=19, main= "Principle Component Analysis", ylim = c(-70, 70), xlim = c(-70, 70), cex = 2)
+
+polygon(pts.array[, , 1], col = adjustcolor(colors[2], 
+                                            alpha = 0.25), border = NA)
+polygon(pts.array[, , 2], col = adjustcolor(colors[3], 
+                                            alpha = 0.25), border = NA)
+dev.off()
