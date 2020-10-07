@@ -117,10 +117,10 @@ fuzzyprep_usepreviousImputation_foldchange <- function(z)
 #### Load data: Drosophila (TBI + Control) on 1. Food and Water AND 2. Water only 
 ```{r load_data, echo=FALSE}
 # Load data containing a subset of columns for the FWW dataset
-proteinGroups_dros_Brain_FWW <- read.csv("G:/Projects/Proteomics/DorsophilaHead_Experiment/txt_Food_Water_Water_Together/proteinGroups_Food_Water_Water_Together.csv", header = TRUE, sep = ",", stringsAsFactors = FALSE)
+proteinGroups_dros_Brain_FWW <- read.csv("I:/EAT_BackUP/Trujillo_34362342_44636349_SN_Data/P2/Complete/Projects/Proteomics/DorsophilaHead_Experiment/txt_Food_Water_Water_Together/proteinGroups_Food_Water_Water_Together.csv", header = TRUE, sep = ",", stringsAsFactors = FALSE)
 
 # Load data containing more information on the scans and quality of identifications
-proteinGroups_dros_Brain_FWW_extended <- read.csv("G:/Projects/Proteomics/DorsophilaHead_Experiment/txt_Food_Water_Water_Together/proteinGroups_Food_Water_Water_Together_20191018.csv", header = TRUE, sep = ",", stringsAsFactors = FALSE)
+proteinGroups_dros_Brain_FWW_extended <- read.csv("I:/EAT_BackUP/Trujillo_34362342_44636349_SN_Data/P2/Complete/Projects/Proteomics/DorsophilaHead_Experiment/txt_Food_Water_Water_Together/proteinGroups_Food_Water_Water_Together_20191018.csv", header = TRUE, sep = ",", stringsAsFactors = FALSE)
 
 cat(paste0("Number of protein groups in Brain Data before any filtering of missing measurements: ", nrow(proteinGroups_dros_Brain_FWW)))
 
@@ -128,6 +128,22 @@ cat(paste0("Number of protein groups in Brain Data before any filtering of missi
 
 proteinGroups_dros_Brain_FWW <- subsetLFQ(proteinGroups_dros_Brain_FWW) 
 print(paste("Number of complete proteins: ", nrow(proteinGroups_dros_Brain_FWW))) 
+
+
+notPartOfExperiment <- vector()
+for(i in 21:40){
+  id <- paste0(".",as.character(i),"_n")
+  print(id)
+  notPartOfExperiment <- append(notPartOfExperiment,grep(id,colnames(proteinGroups_dros_Brain_FWW_extended)))
+}
+
+#remove samples greater than 20 
+proteinGroups_dros_Brain_FWW_extended_filtered <- proteinGroups_dros_Brain_FWW_extended[,-notPartOfExperiment]
+write.csv(proteinGroups_dros_Brain_FWW_extended_filtered,"I:/EAT_BackUP/Trujillo_34362342_44636349_SN_Data/P2/Complete/Projects/Proteomics/DorsophilaHead_Experiment/txt_Food_Water_Water_Together/proteinGroups_Heads_TBI_replicates_FW_20191018.csv")
+
+
+proteinGroups_dros_Brain_FWW_extended_filteredagain <- subsetLFQ(proteinGroups_dros_Brain_FWW_extended) 
+print(paste("Number of complete proteins: ", nrow(proteinGroups_dros_Brain_FWW_extended_filteredagain)))
 
 ```
 
@@ -247,6 +263,7 @@ brain_FW_meta <- brain_FWW_meta[1:57,]
                  # 7, 7, 14, 14, 21, 21, 28, 28, 35, 35)
 #head_meta$time <- number_times
 
+# write.csv(brain_FW_meta,"I:/EAT_BackUP/Trujillo_34362342_44636349_SN_Data/P2/Complete/Projects/Proteomics/DorsophilaHead_Experiment/SamplePrep_Document/proteinGroups_Heads_TBI_replicates_FW_20191018_sampleNames_meta.csv")
 
 ```
 
@@ -501,6 +518,23 @@ legend("topright",
 
 ```
 
+Color by time
+```{r, echo=FALSE}
+plot(pca_FW_meanNormalized$x, pch = 19, cex = 2,
+     col = colors[as.numeric(factor(mean_normalized_FW_byProtein_sepTBIandCTRL$hour))],
+     main = "Principle Component Analysis\n Brain TBI Normalized to Mean Protein Intensity\n on Food & Water",
+     ylim = c(-20, 20), xlim = c(-20, 25),
+     xlab = "PC1 16.18%", ylab ="PC2 13.99%")
+text(pca_FW_meanNormalized$x[,1], pca_FW_meanNormalized$x[,2],
+     labels = mean_normalized_FW_byProtein_sepTBIandCTRL$hour)
+legend("topright",
+       legend = levels(factor(mean_normalized_FW_byProtein_sepTBIandCTRL$Sample_Type)),
+       pch = 16,
+       col = colors[1:length(levels(factor(mean_normalized_FW_byProtein_sepTBIandCTRL$Sample_Type)))],
+       y.intersp = 0.7)
+```
+
+
 The loadings plot describes which proteins are driving the differences in grouping in the PCA plot above. Focusing on PC2, the proteins that are driving the clustering driven replicates are in red. After further analysis, these proteins have coefficient of variations (CV) greater than 100%.
 ```{r, echo=FALSE}
 # Loadings plot of samples normalized with separate time zero's
@@ -750,6 +784,8 @@ FW_proteins_lessThan100CV_matrix <- as.matrix(FW_proteins_lessThan100CV_noMeta)
 treatment_plsda_less100 <- plsr(as.numeric(FW_proteins_lessThan100CV$Sample_Type) ~ FW_proteins_lessThan100CV_matrix, method = "oscorespls", ncomp =  4)
 summary(treatment_plsda_less100)
 
+treatment_plsda_time_less100 <- plsr(as.numeric(FW_proteins_lessThan100CV$hour) ~ FW_proteins_lessThan100CV_matrix, method = "oscorespls", ncomp =  4)
+summary(treatment_plsda_time_less100)
 ```
 
 ##### Data has been saved in .Rdata file. Can continue data anlysis from here
@@ -791,25 +827,69 @@ save(LFQ_FWW_Ordered_LOG2_uniqueName_add7920,
      brain_FWW_meta,
      file = "C:/Users/etrujillo2/Documents/Projects/.Rproj.user/Drosophila-Traumatic-Brain-Injury/FWW_TBIreplicates_brains.Rdata")
 
-load("C:/Users/etrujillo2/Documents/Projects/.Rproj.user/Drosophila-Traumatic-Brain-Injury/ReplicteTBI_brains_formatted.Rdata")
+load("P:/EAT_backup/CoonLab/.Rproj.user/Drosophila-Traumatic-Brain-Injury/ReplicteTBI_brains_formatted.Rdata")
+
+```
+
+```{r, echo=FALSE}
+library(RColorBrewer)
+n <- 20
+qual_col_pals = brewer.pal.info[brewer.pal.info$category == 'qual',]
+col_vector = unlist(mapply(brewer.pal, qual_col_pals$maxcolors, rownames(qual_col_pals)))
+pie(rep(1,n), col=sample(col_vector, n))
+
+library(RColorBrewer)
+brewer.pal(11, "BrBG")
+
+library(randomcoloR)
+ palette <- distinctColorPalette(n)
 
 ```
 
 ```{r, echo=FALSE}
 sample.colors = as.numeric(factor(FW_proteins_lessThan100CV$Sample_Type))
+time.colors = as.numeric(factor(FW_proteins_lessThan100CV$hour))
 plot(treatment_plsda_less100$scores, 
-     pch = 19,  
+     #pch = 19,  
+     pch = c(1,4)[sample.colors],
      cex = 2,
+     xlim = c(-8,8),
      yaxt = "n",
-     col = colors[sample.colors],
+     #col = colors[sample.colors],
+     col = "black",
      main = "PLSDA of Food and Water Samples")
 axis(side = 2, las = 2, mgp = c(3, 0.75, 0))
-# text(treatment_plsda_less100$scores[,1], 
-#           treatment_plsda_less100$scores[,2],
-#           as.character(FW_proteins_lessThan100CV$Samples), 
-#           pos = 4, cex = 0.8)
-legend("topleft", legend = levels(factor(FW_proteins_lessThan100CV$Sample_Type)), pch = 16, col = colors[1:length(levels(factor(FW_proteins_lessThan100CV$Sample_Type)))])
+text(treatment_plsda_less100$scores[,1],
+          treatment_plsda_less100$scores[,2],
+          as.character(FW_proteins_lessThan100CV$hour),
+          col =  palette[time.colors],
+          pos = 4, cex = 1)
+legend("topleft", legend = levels(factor(FW_proteins_lessThan100CV$Sample_Type)), pch = c(1,4), col = "black") #colors[1:length(levels(factor(FW_proteins_lessThan100CV$Sample_Type)))])
 ```
+
+
+
+```{r, echo=FALSE}
+sample.colors = as.numeric(factor(FW_proteins_lessThan100CV$Sample_Type))
+time.colors = as.numeric(factor(FW_proteins_lessThan100CV$hour))
+plot(treatment_plsda_less100$scores, 
+     #pch = 19,  
+     pch = c(1,4)[sample.colors],
+     cex = 2,
+     xlim = c(-8,8),
+     yaxt = "n",
+     #col = colors[sample.colors],
+     col = "black",
+     main = "PLSDA of Food and Water Samples")
+axis(side = 2, las = 2, mgp = c(3, 0.75, 0))
+text(treatment_plsda_less100$scores[,1],
+          treatment_plsda_less100$scores[,2],
+          as.character(FW_proteins_lessThan100CV$hour),
+          col =  palette[time.colors],
+          pos = 4, cex = 1)
+legend("topleft", legend = levels(factor(FW_proteins_lessThan100CV$Sample_Type)), pch = c(1,4), col = "black") #colors[1:length(levels(factor(FW_proteins_lessThan100CV$Sample_Type)))])
+```
+
 
 ```{r, echo=FALSE}
 # extract the MaxQuant id's for plsda top 25 leading proteins
@@ -902,6 +982,15 @@ average_time.point_lessThan100CV <- aggregate(FW_proteins_lessThan100CV[,7:ncol(
 std_time.point_lessThan100CV <- aggregate(FW_proteins_lessThan100CV[,7:ncol(FW_proteins_lessThan100CV)],
                                 list(FW_proteins_lessThan100CV$Samples), sd)
 
+# Calculate the number of samples in each time point
+numberOfSamples <- FW_proteins_lessThan100CV[,7:ncol(FW_proteins_lessThan100CV)] %>% count(FW_proteins_lessThan100CV$Samples)
+# Calculate standard error
+std_time.point_lessThan100CV <- std_time.point_lessThan100CV[,-1]
+std.error.point_lessThan100CV <- std_time.point_lessThan100CV
+for(i in 1:ncol(std_time.point_lessThan100CV)){
+  std.error.point_lessThan100CV[,i] <- std_time.point_lessThan100CV[,i]/sqrt(numberOfSamples$n)
+}
+
 t_average_time.point_lessThan100CV <- t(average_time.point_lessThan100CV[,-1])
 colnames(t_average_time.point_lessThan100CV) <- average_time.point_lessThan100CV[,1]
 
@@ -932,9 +1021,9 @@ brain_FW_meta_avg <- cbind(brain_FW_meta_reduced_ordered,average_time.point_less
 colnames(brain_FW_meta_avg) <- c(colnames(brain_FW_meta_reduced_ordered),colnames(average_time.point_lessThan100CV[,-1]))
 
 # TimeSeries plot for average aggregate dataframe
-# n = n
-# x = average_time.point_lessThan100CV[,-1]
-# s = std_time.point_lessThan100CV[,-1]
+n = n
+x = average_time.point_lessThan100CV[,-1]
+s = std.error.point_lessThan100CV
 
 timeSeries_protein_plot <- function(n,x,s){
   even_timepoints <- x[even,which(colnames(x) == n)]
@@ -943,13 +1032,13 @@ timeSeries_protein_plot <- function(n,x,s){
   even_std_timepoints <- s[even,which(colnames(s) == n)]
   odd_std_timepoints <- s[odd,which(colnames(s) == n)]
   
-  even_std_timepoints_minus <- c(even_timepoints[1], even_timepoints[2:length(even_timepoints)]-(even_std_timepoints))
+  even_std_timepoints_minus <- c(even_timepoints[1], even_timepoints[2:length(even_timepoints)]-(even_std_timepoints[2:length(even_std_timepoints)]))
   
-  even_std_timepoints_plus <- c(even_timepoints[1], even_timepoints[2:length(even_timepoints)]+(even_std_timepoints))
+  even_std_timepoints_plus <- c(even_timepoints[1], even_timepoints[2:length(even_timepoints)]+(even_std_timepoints[2:length(even_std_timepoints)]))
   
-  odd_std_timepoints_minus <- c(odd_timepoints[1], odd_timepoints[2:length(odd_timepoints)]-(odd_std_timepoints))
+  odd_std_timepoints_minus <- c(odd_timepoints[1], odd_timepoints[2:length(odd_timepoints)]-(odd_std_timepoints[2:length(odd_std_timepoints)]))
   
-  odd_std_timepoints_plus <- c(odd_timepoints[1], odd_timepoints[2:length(odd_timepoints)]+(odd_std_timepoints))
+  odd_std_timepoints_plus <- c(odd_timepoints[1], odd_timepoints[2:length(odd_timepoints)]+(odd_std_timepoints[2:length(odd_std_timepoints)]))
   
   if(min(even_std_timepoints_minus) < min(odd_std_timepoints_minus)){
     minimum_y_Intensity <- min(even_std_timepoints_minus)
@@ -966,15 +1055,16 @@ timeSeries_protein_plot <- function(n,x,s){
   par(mar = c(4,6,4,1), las  = 1, mgp = c(2.5,0.5,0), tcl =  -0.3, ps = 12)
 
   plot(Times, even_timepoints,
-       ylim = c(minimum_y_Intensity,max_y_Intensity),
-       xlab = "Time (Hours)", ylab = paste("Log2(Intensity of ",n,")"),  
-       pcex=2, 
+       ylim = c(23.5, 25.5),#c(minimum_y_Intensity,max_y_Intensity),
+       xlab = "Time (Hours)", ylab = paste("Average Log2(Intensity)"),  
+       #pcex=2, 
        type = "b,c",
        pch = 19,
        lty = 2,
        main = paste(n,"-", Gene.name$Gene.names, " ", Gene.name$Uniprot.ID),
        xaxt = "n")
-  lines(Times,odd_timepoints, col = "red") 
+  points(Times, odd_timepoints, type = "b,c", pch = 19, col = "red")
+  #lines(Times,odd_timepoints, col = "red") 
   axis(1,Times, labels = labels_hours)
   legend("topright", legend = levels(factor(brain_FW_meta_reduced$Sample_Type)), 
          lty = 1, col = c("red","black"))
@@ -999,7 +1089,7 @@ Gene.name <- proteins_lessThan100CV_csv[grep("A4VA49",proteins_lessThan100CV_csv
 
 protein_id <- Gene.name$MaxQuant.ID
 n <- protein_id
-timeSeries_protein_plot(n,average_time.point_lessThan100CV[,-1],std_time.point_lessThan100CV[,-1])
+timeSeries_protein_plot(n,average_time.point_lessThan100CV[,-1],std.error.point_lessThan100CV)
 # timeSeries_protein_plot(n,median_time.point_lessThan100CV) #or median_time.point_lessThan100CV
 
 
